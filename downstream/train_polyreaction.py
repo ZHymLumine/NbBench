@@ -29,7 +29,14 @@ sys.path.append(parent_dir)
 from model.nanobert.modeling_nanobert import NanoBertForSequenceClassification
 from model.vhhbert.modeling_vhhbert import VHHBertForSequenceClassification
 from model.antiberty.modeling_antiberty import AntiBERTyForSequenceClassification
-from model.iglm.modeling_iglm import IgLMForCdrClassification
+from model.igbert.modeling_igbert import IgBertForSequenceClassification
+from model.iglm.modeling_iglm import IgLMForSequenceClassification
+from model.ablang_h.modeling_ablang_h import AbLangHForSequenceClassification
+from model.ablang_l.modeling_ablang_l import AbLangLForSequenceClassification
+from model.antiberta2.modeling_antiberta2 import Antiberta2ForSequenceClassification
+from model.antiberta2.modeling_antiberta2_cssp import Antiberta2CSSPForSequenceClassification
+from model.protbert.modeling_protbert import ProtBertForSequenceClassification
+from model.esm2.modeling_esm import ESMForSequenceClassification
 
 
 early_stopping = EarlyStoppingCallback(early_stopping_patience=20)
@@ -44,6 +51,7 @@ class ModelArguments:
     lora_dropout: float = field(default=0.05, metadata={"help": "dropout rate for LoRA"})
     lora_target_modules: str = field(default="query,value", metadata={"help": "where to perform LoRA"})
     tokenizer_name_or_path: Optional[str] = field(default="")
+    freeze: bool = field(default=True, metadata={"help": "whether to freeze the model"})
 
 @dataclass
 class DataArguments:
@@ -204,7 +212,7 @@ def train():
 
     # load tokenizer
     if training_args.model_type in ['nanobert', 'vhhbert', 'antiberty', 'iglm']:
-        tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -212,7 +220,7 @@ def train():
             use_fast=True,
             trust_remote_code=True,
         )
-    elif training_args.model_type in ['esm-2']:
+    elif "esm-2" in training_args.model_type:
         tokenizer = EsmTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -222,7 +230,7 @@ def train():
             trust_remote_code=True,
         )
     else:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -255,12 +263,13 @@ def train():
     elif training_args.model_type == 'vhhbert':  
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
+        print(f"model_args: {model_args}")
         model = VHHBertForSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
             trust_remote_code=True,
-        )           
+        )
     elif training_args.model_type == 'antiberty':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
@@ -273,42 +282,73 @@ def train():
     elif training_args.model_type == 'iglm':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = IgLMForCdrClassification.from_pretrained(
+        model = IgLMForSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
             trust_remote_code=True,
         )        
-    elif 'splicebert' in training_args.model_type:
+    elif training_args.model_type == 'igbert':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = IgBertForSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'antiberta2':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = Antiberta2ForSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'antiberta2_cssp':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = Antiberta2CSSPForSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'ablang_h':
+        model = AbLangHForSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
             trust_remote_code=True,
         )       
-    elif 'utrbert' in training_args.model_type:
+    elif training_args.model_type == 'ablang_l':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = AbLangLForSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )  
-    elif 'utr-lm' in training_args.model_type:
+        )   
+    elif training_args.model_type == 'protbert':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = ProtBertForSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )     
+        )
+    elif "esm-2" in training_args.model_type:
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        print(f"model_args: {model_args}")
+        print(f"model_args type:{type(model_args)}")
+        model = ESMForSequenceClassification(
+            model_args,
+            num_labels=train_dataset.num_labels,
+        )
         
 
 
@@ -342,66 +382,6 @@ def train():
 
 
 if __name__ == "__main__":
-    # import torch
-    # from torch.utils.data import DataLoader
-    # from torch.nn import CrossEntropyLoss
-    # from transformers import AutoTokenizer
-    # from torch import nn
-    # from tqdm import tqdm
-
-
-    # tokenizer = AutoTokenizer.from_pretrained("/Users/zym/Downloads/Research/Okumura_lab/nanobody/model/nanobert")
-
-    # # 定义一个简单的参数类
-    # class Args:
-    #     def __init__(self):
-    #         self.model_name_or_path = "NaturalAntibody/nanoBERT"
-    #         self.cache_dir = "./cache"
-    #         self.model_max_length = 512
-    #         self.num_labels = 2  # 假设是二分类任务
-
-    # args = Args()
-
-    # # 数据路径（替换为你的 CSV 文件路径）
-    # data_path = "/Users/zym/Downloads/Research/Okumura_lab/nanobody/data/VHtype/test.csv"
-
-    # # 创建数据集实例
-    # dataset = SupervisedDataset(data_path, args,tokenizer)
-
-    # # 创建数据加载器
-    # dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
-
-    # # 初始化模型
-    # model = NanoBertForSequenceClassification.from_pretrained("/Users/zym/Downloads/Research/Okumura_lab/nanobody/model/nanobert")
-
-    # # 测试模型
-    # model.eval()
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # model.to(device)
-
-    # for batch in tqdm(dataloader, desc="Evaluating"):
-    #     tokenized_inputs = tokenizer(list(batch['input_ids']), padding=True, truncation=True, return_tensors="pt")
-    
-    #     # 获取 tokenized input_ids 和 attention_mask
-    #     input_ids = tokenized_inputs['input_ids']
-    #     attention_mask = tokenized_inputs['attention_mask']
-    #     labels = batch['labels']
-    #     labels = torch.Tensor(labels).long()
-
-    #     with torch.no_grad():
-    #         outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-
-    #     # 获取 logits 和 loss
-    #     logits = outputs.logits
-    #     loss = outputs.loss
-
-    #     print("Logits:", logits)
-    #     print("Loss:", loss.item())
-
-    #     predictions = torch.argmax(logits, dim=-1)
-    #     print("Predicted labels:", predictions)
-    #     print("True labels:", labels)
-
 
     train()
 

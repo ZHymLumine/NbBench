@@ -2,22 +2,21 @@
 
 # This is your argument
 
-gpu_device="1"
+gpu_device="2"
 
 nproc_per_node=1
 master_port=$(shuf -i 10000-45000 -n 1)
 echo "Using port $master_port for communication."
 
+EXEC_PREFIX="env CUDA_VISIBLE_DEVICES=$gpu_device torchrun --nproc_per_node=$nproc_per_node --master_port=$master_port"
+
 export TOKENIZERS_PARALLELISM=false
 
 
-data_root=/home/yzhang/research/nanobody/data
+data_root=/home/yzhang/research/nanobody_benchmark/data
 model_root=./checkpoint
 
-
-
 MODEL_TYPE='vhhbert'
-
 task='paratope'
 DATA_PATH=${data_root}/downstream/${task}
 batch_size=32
@@ -27,18 +26,12 @@ lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}  
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
 seed=12345
 
 
 
-# TODO: 需要修改
-master_port=$(shuf -i 10000-45000 -n 1)
-echo "Using port $master_port for communication."
-
-echo ${MODEL_PATH}
-
-CUDA_VISIBLE_DEVICES=${gpu_device} python \
+${EXEC_PREFIX} \
 downstream/train_paratope.py \
     --model_name_or_path $MODEL_PATH \
     --data_path  $DATA_PATH/$data \
@@ -49,8 +42,8 @@ downstream/train_paratope.py \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
-    --save_steps 400 \
+    --num_train_epochs 50 \
+    --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
     --eval_steps 200 \
@@ -60,5 +53,3 @@ downstream/train_paratope.py \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16
-# NOTE: may need to add fp16

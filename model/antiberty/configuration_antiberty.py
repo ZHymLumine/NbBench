@@ -74,6 +74,7 @@ class AntiBERTyConfig(PretrainedConfig):
         head=None,
         lm_head=None,
         token_type=None,
+        freeze=True,
         _name_or_path=None,
         **kwargs,
     ):
@@ -96,4 +97,4 @@ class AntiBERTyConfig(PretrainedConfig):
         self.output_hidden_states = True
         self.head = HeadConfig(**head if head is not None else {})
         self.lm_head = MaskedLMHeadConfig(**lm_head if lm_head is not None else {})
-
+        self.freeze = freeze

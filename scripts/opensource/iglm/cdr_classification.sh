@@ -12,10 +12,8 @@ EXEC_PREFIX="env CUDA_VISIBLE_DEVICES=$gpu_device torchrun --nproc_per_node=$npr
 export TOKENIZERS_PARALLELISM=false
 
 
-data_root=/home/yzhang/research/nanobody/data
+data_root=/home/yzhang/research/nanobody_benchmark/data
 model_root=./checkpoint
-
-
 
 MODEL_TYPE='iglm'
 
@@ -28,7 +26,7 @@ lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}  
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}  
 seed=12345
 
 ${EXEC_PREFIX} \

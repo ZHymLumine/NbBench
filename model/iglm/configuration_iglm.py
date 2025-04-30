@@ -32,6 +32,7 @@ class IgLMConfig(PretrainedConfig):
         scale_attn_by_inverse_layer_idx=False,
         reorder_and_upcast_attn=False,
         resid_pdrop=0.1,
+        freeze=True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -57,4 +58,4 @@ class IgLMConfig(PretrainedConfig):
         self.reorder_and_upcast_attn = reorder_and_upcast_attn
         self.head = HeadConfig(**head if head is not None else {})
         self.lm_head = MaskedLMHeadConfig(**lm_head if lm_head is not None else {})
-
+        self.freeze = freeze

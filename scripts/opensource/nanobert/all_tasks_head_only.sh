@@ -1,10 +1,10 @@
 #!/bin/bash
-
+SECONDS=0
 # Common settings
 export TOKENIZERS_PARALLELISM=false
 gpu_device="0"
 nproc_per_node=1
-data_root="/home/yzhang/research/nanobody/data"
+data_root="/home/yzhang/research/nanobody_benchmark/data"
 model_root="./checkpoint"
 MODEL_TYPE='nanobert'
 seed=12345
@@ -107,8 +107,6 @@ seed=12345
 
 
 ${EXEC_PREFIX} \
-    --nproc_per_node=${nproc_per_node} \
-    --master_port=29500 \
     downstream/train_interaction.py \
     --model_name_or_path $MODEL_PATH \
     --data_path  $DATA_PATH/$data \
@@ -148,8 +146,6 @@ seed=12345
 
 
 ${EXEC_PREFIX} \
-    --nproc_per_node=${nproc_per_node} \
-    --master_port=29501 \
     downstream/train_interaction.py \
     --model_name_or_path $MODEL_PATH \
     --data_path  $DATA_PATH/$data \
@@ -243,7 +239,6 @@ downstream/train_paratope.py \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16
 
 # 5. Polyreactivity Prediction Task
 echo "Starting polyreactivity prediction task..."
@@ -281,7 +276,6 @@ downstream/train_polyreaction.py \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16
 
 # 6. Sdab Type Prediction Task
 echo "Starting sdab type prediction task..."
@@ -354,7 +348,6 @@ ${EXEC_PREFIX} \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16
 
 data_file_train=train_seq.csv; data_file_val=val_seq.csv; data_file_test=test_seq.csv
 OUTPUT_PATH=./outputs/probe/${task}/seq/opensource/${MODEL_TYPE}_lr_${lr}
@@ -381,7 +374,6 @@ ${EXEC_PREFIX} \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16
 
 # 8. Thermostability Prediction Task
 echo "Starting thermostability prediction task..."
@@ -446,3 +438,7 @@ ${EXEC_PREFIX} \
     --model_type ${MODEL_TYPE}
 
 echo "All tasks completed successfully!" 
+
+
+duration=$SECONDS
+echo "Total runtime: $((duration / 3600))h $(((duration % 3600) / 60))m $((duration % 60))s"

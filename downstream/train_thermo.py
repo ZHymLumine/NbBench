@@ -30,7 +30,13 @@ from model.nanobert.modeling_nanobert import NanoBertForSequenceClassification
 from model.vhhbert.modeling_vhhbert import VHHBertForSequenceClassification
 from model.antiberty.modeling_antiberty import AntiBERTyForSequenceClassification
 from model.iglm.modeling_iglm import IgLMForSequenceClassification
-
+from model.igbert.modeling_igbert import IgBertForSequenceClassification
+from model.ablang_h.modeling_ablang_h import AbLangHForSequenceClassification
+from model.ablang_l.modeling_ablang_l import AbLangLForSequenceClassification
+from model.antiberta2.modeling_antiberta2 import Antiberta2ForSequenceClassification
+from model.antiberta2.modeling_antiberta2_cssp import Antiberta2CSSPForSequenceClassification
+from model.protbert.modeling_protbert import ProtBertForSequenceClassification
+from model.esm2.modeling_esm import ESMForSequenceClassification
 
 early_stopping = EarlyStoppingCallback(early_stopping_patience=20)
 @dataclass
@@ -44,6 +50,7 @@ class ModelArguments:
     lora_dropout: float = field(default=0.05, metadata={"help": "dropout rate for LoRA"})
     lora_target_modules: str = field(default="query,value", metadata={"help": "where to perform LoRA"})
     tokenizer_name_or_path: Optional[str] = field(default="")
+    freeze: bool = field(default=True, metadata={"help": "whether to freeze the model"})
 
 @dataclass
 class DataArguments:
@@ -137,7 +144,6 @@ class SupervisedDataset(Dataset):
         print(test_example)
         print(len(test_example))
         print(tokenizer(texts[0]))
-        print("labels:", labels)
         self.labels = labels
         self.num_labels = 1
         self.texts = texts
@@ -212,7 +218,7 @@ def train():
 
     # load tokenizer
     if training_args.model_type in ['nanobert', 'vhhbert', 'antiberty', 'iglm']:
-        tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -220,7 +226,7 @@ def train():
             use_fast=True,
             trust_remote_code=True,
         )
-    elif training_args.model_type in ['esm-2']:
+    elif "esm-2" in training_args.model_type:
         tokenizer = EsmTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -230,7 +236,7 @@ def train():
             trust_remote_code=True,
         )
     else:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -253,7 +259,6 @@ def train():
     if training_args.model_type == 'nanobert':
         print(training_args.model_type)
         print('Loading nanobert model')
-        print(train_dataset.num_labels)
         model =  NanoBertForSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -268,7 +273,7 @@ def train():
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
             trust_remote_code=True,
-        )        
+        )
     elif training_args.model_type == 'antiberty':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
@@ -287,36 +292,67 @@ def train():
             num_labels=train_dataset.num_labels,
             trust_remote_code=True,
         )        
-    elif 'splicebert' in training_args.model_type:
+    elif training_args.model_type == 'igbert':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = IgBertForSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'antiberta2':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = Antiberta2ForSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'antiberta2_cssp':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = Antiberta2CSSPForSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'ablang_h':
+        model = AbLangHForSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
             trust_remote_code=True,
         )       
-    elif 'utrbert' in training_args.model_type:
+    elif training_args.model_type == 'ablang_l':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = AbLangLForSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )  
-    elif 'utr-lm' in training_args.model_type:
+        )   
+    elif training_args.model_type == 'protbert':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = ProtBertForSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
         )     
+    elif "esm-2" in training_args.model_type:
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        print(f"model_args: {model_args}")
+        print(f"model_args type:{type(model_args)}")
+        model = ESMForSequenceClassification(
+            model_args,
+            num_labels=train_dataset.num_labels,
+        )
         
 
 

@@ -10,12 +10,11 @@ EXEC_PREFIX="env CUDA_VISIBLE_DEVICES=$gpu_device torchrun --nproc_per_node=$npr
 
 export TOKENIZERS_PARALLELISM=false
 
-data_root=/home/yzhang/research/nanobody/data
+data_root=/home/yzhang/research/nanobody_benchmark/data
 model_root=./checkpoint
 MODEL_TYPE='vhhbert'
 
 # 1.AVIDa-SARS-CoV-2
-
 task='AVIDa-SARS-CoV-2'
 DATA_PATH=${data_root}/downstream/${task}
 batch_size=32
@@ -25,7 +24,7 @@ lr=1e-3
 data=''
 data_file_train=train.csv; data_file_val=val_small.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}_lr${lr}
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr${lr}
 seed=12345
 
 echo ${MODEL_PATH}
@@ -38,10 +37,10 @@ ${EXEC_PREFIX} \
     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
     --model_max_length ${model_max_length} \
     --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 4 \
+    --per_device_eval_batch_size 16 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 30 \
+    --num_train_epochs 50 \
     --save_steps 400 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --logging_dir ${OUTPUT_PATH}/${data}/logs \
@@ -53,83 +52,81 @@ ${EXEC_PREFIX} \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16 \
-    --ddp_backend nccl
 
 # 2.AVIDa-hIL6
-task='AVIDa-hIL6'
-DATA_PATH=${data_root}/downstream/${task}
-batch_size=32
-gradient_accumulation=2
-model_max_length=187
-lr=1e-3
-data=''
-data_file_train=train.csv; data_file_val=val_sampled.csv; data_file_test=test.csv
-MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}_lr${lr}
-seed=12345
+# task='AVIDa-hIL6'
+# DATA_PATH=${data_root}/downstream/${task}
+# batch_size=32
+# gradient_accumulation=2
+# model_max_length=187
+# lr=1e-3
+# data=''
+# data_file_train=train.csv; data_file_val=val_sampled.csv; data_file_test=test.csv
+# MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
+# OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}_lr${lr}
+# seed=12345
 
-echo ${MODEL_PATH}  
+# echo ${MODEL_PATH}  
 
-${EXEC_PREFIX} \
-    downstream/train_interaction.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path  $DATA_PATH/$data \
-    --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
-    --run_name ${MODEL_TYPE}_${data}_seed${seed} \
-    --model_max_length ${model_max_length} \
-    --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 16 \
-    --gradient_accumulation_steps ${gradient_accumulation} \
-    --learning_rate ${lr} \
-    --num_train_epochs 30 \
-    --save_steps 400 \
-    --output_dir ${OUTPUT_PATH}/${data} \
-    --logging_dir ${OUTPUT_PATH}/${data}/logs \
-    --evaluation_strategy steps \
-    --eval_steps 200 \
-    --warmup_steps 50 \
-    --logging_steps 200 \
-    --overwrite_output_dir True \
-    --log_level info \
-    --seed ${seed} \
-    --model_type ${MODEL_TYPE} \
+# ${EXEC_PREFIX} \
+#     downstream/train_interaction.py \
+#     --model_name_or_path $MODEL_PATH \
+#     --data_path  $DATA_PATH/$data \
+#     --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
+#     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
+#     --model_max_length ${model_max_length} \
+#     --per_device_train_batch_size ${batch_size} \
+#     --per_device_eval_batch_size 16 \
+#     --gradient_accumulation_steps ${gradient_accumulation} \
+#     --learning_rate ${lr} \
+#     --num_train_epochs 30 \
+#     --save_steps 400 \
+#     --output_dir ${OUTPUT_PATH}/${data} \
+#     --logging_dir ${OUTPUT_PATH}/${data}/logs \
+#     --evaluation_strategy steps \
+#     --eval_steps 200 \
+#     --warmup_steps 50 \
+#     --logging_steps 200 \
+#     --overwrite_output_dir True \
+#     --log_level info \
+#     --seed ${seed} \
+#     --model_type ${MODEL_TYPE} \
 
-# 3.AVIDa-hTNFa
-task='AVIDa-hTNFa'
-DATA_PATH=${data_root}/downstream/${task}
-batch_size=32
-gradient_accumulation=2
-model_max_length=187
-lr=1e-3
-data=''
-data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
-MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}_lr${lr}
-seed=12345
+# # 3.AVIDa-hTNFa
+# task='AVIDa-hTNFa'
+# DATA_PATH=${data_root}/downstream/${task}
+# batch_size=32
+# gradient_accumulation=2
+# model_max_length=187
+# lr=1e-3
+# data=''
+# data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
+# MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
+# OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}_lr${lr}
+# seed=12345
 
-echo ${MODEL_PATH}
+# echo ${MODEL_PATH}
 
-${EXEC_PREFIX} \
-    downstream/train_interaction.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path  $DATA_PATH/$data \
-    --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
-    --run_name ${MODEL_TYPE}_${data}_seed${seed} \
-    --model_max_length ${model_max_length} \
-    --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 16 \
-    --gradient_accumulation_steps ${gradient_accumulation} \
-    --learning_rate ${lr} \
-    --num_train_epochs 30 \
-    --save_steps 400 \
-    --output_dir ${OUTPUT_PATH}/${data} \
-    --logging_dir ${OUTPUT_PATH}/${data}/logs \
-    --evaluation_strategy steps \
-    --eval_steps 200 \
-    --warmup_steps 50 \
-    --logging_steps 200 \
-    --overwrite_output_dir True \
-    --log_level info \
-    --seed ${seed} \
-    --model_type ${MODEL_TYPE} \
+# ${EXEC_PREFIX} \
+#     downstream/train_interaction.py \
+#     --model_name_or_path $MODEL_PATH \
+#     --data_path  $DATA_PATH/$data \
+#     --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
+#     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
+#     --model_max_length ${model_max_length} \
+#     --per_device_train_batch_size ${batch_size} \
+#     --per_device_eval_batch_size 16 \
+#     --gradient_accumulation_steps ${gradient_accumulation} \
+#     --learning_rate ${lr} \
+#     --num_train_epochs 30 \
+#     --save_steps 400 \
+#     --output_dir ${OUTPUT_PATH}/${data} \
+#     --logging_dir ${OUTPUT_PATH}/${data}/logs \
+#     --evaluation_strategy steps \
+#     --eval_steps 200 \
+#     --warmup_steps 50 \
+#     --logging_steps 200 \
+#     --overwrite_output_dir True \
+#     --log_level info \
+#     --seed ${seed} \
+#     --model_type ${MODEL_TYPE} \

@@ -10,7 +10,7 @@ from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 import torch.autograd as autograd
 from torch import Tensor, nn
 from torch.nn import functional as F
-from transformers import RobertaForMaskedLM, AutoModel, GPT2LMHeadModel
+from transformers import RobertaForMaskedLM, AutoModel, GPT2LMHeadModel, EsmModel, EsmConfig
 from transformers.activations import ACT2FN
 from transformers.modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
@@ -264,6 +264,9 @@ class IgLMForSequenceClassification(PreTrainedModel):
         self.num_labels = config.num_labels
         self.config = config
         self.iglm = GPT2LMHeadModel.from_pretrained(config._name_or_path, config=config)
+        if config.freeze:
+            for param in self.iglm.parameters():
+                param.requires_grad = False 
         self.pooler = IgLMPooler(config)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
@@ -289,7 +292,6 @@ class IgLMForSequenceClassification(PreTrainedModel):
             return_dict=return_dict,
         )
 
-        print(f"outputs: {outputs}")
 
         hidden_states = outputs.hidden_states[-1]
         cls_token = hidden_states[:, 0]
@@ -329,8 +331,6 @@ class IgLMForSequenceClassification(PreTrainedModel):
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
         )
 
 
@@ -344,7 +344,9 @@ class IgLMForAminoAcidLevel(PreTrainedModel):
         self.config = config
     
         self.iglm = GPT2LMHeadModel.from_pretrained(config._name_or_path, config=config)
-
+        if config.freeze:
+            for param in self.iglm.parameters():
+                param.requires_grad = False 
         self.tokenizer = tokenizer
 
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
@@ -379,7 +381,6 @@ class IgLMForAminoAcidLevel(PreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        # final_input= outputs[0]
         final_input = outputs.hidden_states[-1]
         logits = self.classifier(final_input)
 
@@ -411,8 +412,6 @@ class IgLMForAminoAcidLevel(PreTrainedModel):
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
         )
 
 class IgLMForBindingSequenceClassification(PreTrainedModel):
@@ -425,7 +424,9 @@ class IgLMForBindingSequenceClassification(PreTrainedModel):
         self.num_labels = config.num_labels
         self.config = config
         self.iglm = GPT2LMHeadModel.from_pretrained(config._name_or_path, config=config)
-        
+        if config.freeze:
+            for param in self.iglm.parameters():
+                param.requires_grad = False 
         esm_config = EsmConfig.from_pretrained('facebook/esm2_t33_650M_UR50D')
         self.classifier = nn.Linear(config.hidden_size + esm_config.hidden_size, config.num_labels)
 
@@ -506,8 +507,6 @@ class IgLMForBindingSequenceClassification(PreTrainedModel):
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
         )
 
 class IgLMForParatope(PreTrainedModel):
@@ -520,7 +519,9 @@ class IgLMForParatope(PreTrainedModel):
         self.config = config
     
         self.iglm = GPT2LMHeadModel.from_pretrained(config._name_or_path, config=config)
-
+        if config.freeze:
+            for param in self.iglm.parameters():
+                param.requires_grad = False 
         self.tokenizer = tokenizer
         esm_config = EsmConfig.from_pretrained('facebook/esm2_t33_650M_UR50D')
 
@@ -617,6 +618,4 @@ class IgLMForParatope(PreTrainedModel):
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
         )

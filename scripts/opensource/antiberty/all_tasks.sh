@@ -1,10 +1,10 @@
 #!/bin/bash
-
+SECONDS=0
 # Common settings
 export TOKENIZERS_PARALLELISM=false
 gpu_device="1"
 nproc_per_node=1
-data_root="/home/yzhang/research/nanobody/data"
+data_root="/home/yzhang/research/nanobody_benchmark/data"
 model_root="./checkpoint"
 MODEL_TYPE='antiberty'
 seed=12345
@@ -446,3 +446,6 @@ ${EXEC_PREFIX} \
     --model_type ${MODEL_TYPE}
 
 echo "All tasks completed successfully!" 
+
+duration=$SECONDS
+echo "Total runtime: $((duration / 3600))h $(((duration % 3600) / 60))m $((duration % 60))s"

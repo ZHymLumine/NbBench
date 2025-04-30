@@ -28,7 +28,15 @@ sys.path.append(parent_dir)
 from model.nanobert.modeling_nanobert import NanoBertForBindingSequenceClassification
 from model.vhhbert.modeling_vhhbert import VHHBertForBindingSequenceClassification
 from model.antiberty.modeling_antiberty import AntiBERTyForBindingSequenceClassification
-from model.iglm.modeling_iglm import IgLMForAminoAcidLevel
+from model.iglm.modeling_iglm import IgLMForBindingSequenceClassification
+from model.igbert.modeling_igbert import IgBertForBindingSequenceClassification
+from model.ablang_h.modeling_ablang_h import AbLangHForBindingSequenceClassification
+from model.ablang_l.modeling_ablang_l import AbLangLForBindingSequenceClassification
+from model.antiberta2.modeling_antiberta2 import Antiberta2ForBindingSequenceClassification
+from model.antiberta2.modeling_antiberta2_cssp import Antiberta2CSSPForBindingSequenceClassification
+from model.protbert.modeling_protbert import ProtBertForBindingSequenceClassification
+from model.esm2.modeling_esm import ESMForBindingSequenceClassification
+
 
 early_stopping = EarlyStoppingCallback(early_stopping_patience=20)
 @dataclass
@@ -42,7 +50,7 @@ class ModelArguments:
     lora_dropout: float = field(default=0.05, metadata={"help": "dropout rate for LoRA"})
     lora_target_modules: str = field(default="query,value", metadata={"help": "where to perform LoRA"})
     tokenizer_name_or_path: Optional[str] = field(default="")
-    freeze: bool = field(default=False, metadata={"help": "whether to freeze the model"})
+    freeze: bool = field(default=True, metadata={"help": "whether to freeze the model"})
 
 @dataclass
 class DataArguments:
@@ -176,8 +184,6 @@ class DataCollatorForSupervisedDataset(object):
 Manually calculate the accuracy, f1, precision, recall, auprc, auroc with sklearn.
 """
 def calculate_metric_with_sklearn(logits: np.ndarray, labels: np.ndarray):
-    print(f"logits: {logits.shape}")
-    print(f"labels: {labels.shape}")
     if logits.shape[-1] == 1:
         logits = logits.squeeze(-1)
 
@@ -186,12 +192,12 @@ def calculate_metric_with_sklearn(logits: np.ndarray, labels: np.ndarray):
     # logit > 0 → prediction: 1
     predictions = (positive_class_probabilities >= 0.5).astype(int)
 
-    print("DEBUG: predictions", predictions[:10])
-    print("DEBUG: labels", labels[:10])
-    print("DEBUG: predictions dtype", predictions.dtype)
-    print("DEBUG: labels dtype", labels.dtype)
-    print("DEBUG: predictions shape", predictions.shape)
-    print("DEBUG: labels shape", labels.shape)
+    # predictions = np.argmax(logits, axis=-1)
+    # if logits.shape[-1] == 1:
+        # logits = logits.squeeze(-1)
+
+    # probabilities = expit(logits)
+    # positive_class_probabilities = probabilities[:, 1]
 
     return {
         "accuracy": sklearn.metrics.accuracy_score(labels, predictions),
@@ -252,7 +258,7 @@ def train():
     print(f"training_args: {training_args}")
     # load tokenizer
     if training_args.model_type in ['nanobert', 'vhhbert', 'antiberty', 'iglm']:
-        tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -260,7 +266,7 @@ def train():
             use_fast=True,
             trust_remote_code=True,
         )
-    elif training_args.model_type in ['esm-2']:
+    elif "esm-2" in training_args.model_type:
         tokenizer = EsmTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -270,7 +276,7 @@ def train():
             trust_remote_code=True,
         )
     else:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -303,6 +309,7 @@ def train():
     elif training_args.model_type == 'vhhbert':  
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
+        print(f"model_args: {model_args}")
         model = VHHBertForBindingSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -321,44 +328,75 @@ def train():
     elif training_args.model_type == 'iglm':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = IgLMForAminoAcidLevel.from_pretrained(
+        model = IgLMForBindingSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
             trust_remote_code=True,
         )        
-    elif 'splicebert' in training_args.model_type:
+    elif training_args.model_type == 'igbert':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = IgBertForBindingSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )       
-    elif 'utrbert' in training_args.model_type:
+        )
+    elif training_args.model_type == 'antiberta2':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = Antiberta2ForBindingSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )  
-    elif 'utr-lm' in training_args.model_type:
+        )
+    elif training_args.model_type == 'antiberta2_cssp':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = Antiberta2CSSPForBindingSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )     
-        
-
+        )
+    elif training_args.model_type == 'ablang_h':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = AbLangHForBindingSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )   
+    elif training_args.model_type == 'ablang_l':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = AbLangLForBindingSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'protbert':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = ProtBertForBindingSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif "esm-2" in training_args.model_type:
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        print(f"model_args: {model_args}")
+        print(f"model_args type:{type(model_args)}")
+        model = ESMForBindingSequenceClassification(
+            model_args,
+            num_labels=train_dataset.num_labels,    
+        )
 
     # define trainer
     trainer = transformers.Trainer(model=model,

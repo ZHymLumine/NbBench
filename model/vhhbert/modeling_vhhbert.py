@@ -10,7 +10,7 @@ from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 import torch.autograd as autograd
 from torch import Tensor, nn
 from torch.nn import functional as F
-from transformers import RobertaForMaskedLM, PretrainedConfig
+from transformers import PretrainedConfig, EsmModel, EsmConfig, RobertaModel, RobertaForMaskedLM
 from transformers.activations import ACT2FN
 from transformers.modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
@@ -22,7 +22,6 @@ from transformers.modeling_outputs import (
 )
 from transformers.modeling_utils import PreTrainedModel, find_pruneable_heads_and_indices, prune_linear_layer
 from transformers.utils import logging
-from transformers import EsmModel, EsmConfig
 from .configuration_vhhbert import VHHBertConfig
 from ..modeling_utils import FocalLoss
 
@@ -50,22 +49,6 @@ class MCRMSELoss(nn.Module):
         for i in range(self.num_scored):
             score += self.rmse(yhat[:, :, i], y[:, :, i]) / self.num_scored
         return score
-
-# Copied from transformers.models.bert.modeling_bert.BertPooler
-class VHHBertPooler(nn.Module):
-    def __init__(self, config: VHHBertConfig):
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.activation = nn.Tanh()
-
-    def forward(self, hidden_states: Tensor) -> Tensor:
-        # We "pool" the model by simply taking the hidden state corresponding
-        # to the first token.
-        first_token_tensor = hidden_states[:, 0]
-        pooled_output = self.dense(first_token_tensor)
-        pooled_output = self.activation(pooled_output)
-        return pooled_output
-
 
 class ResidualBlock(nn.Module):
     def __init__(self, hidden_size):
@@ -97,7 +80,7 @@ class VHHBertPooler(nn.Module):
         pooled_output = self.activation(pooled_output)
         return pooled_output
 
-class VHHBertForSequenceClassification(nn.Module):
+class VHHBertForSequenceClassification(PreTrainedModel):
     config_class = VHHBertConfig
     base_model_prefix = "vhhbert"
     supports_gradient_checkpointing = True
@@ -106,9 +89,8 @@ class VHHBertForSequenceClassification(nn.Module):
         super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
-        # self.vhhbert = RobertaForMaskedLM.from_pretrained(config._name_or_path, config=config)
-        print(f"config: {config}")
-        self.vhhbert = RobertaForMaskedLM.from_pretrained(config)
+        self.vhhbert = RobertaForMaskedLM.from_pretrained(config._name_or_path, config=config)
+        # self.vhhbert = RobertaForMaskedLM.from_pretrained("COGNANO/VHHBERT")
         if config.freeze:
             for param in self.vhhbert.parameters():
                 param.requires_grad = False
@@ -138,6 +120,7 @@ class VHHBertForSequenceClassification(nn.Module):
         )
 
         hidden_states = outputs.hidden_states[-1]
+        # hidden_states = outputs.last_hidden_state
         cls_token = hidden_states[:, 0]
         pooled_output = cls_token
         logits = self.classifier(pooled_output)
@@ -178,19 +161,20 @@ class VHHBertForSequenceClassification(nn.Module):
 
 
 class VHHBertForAminoAcidLevel(PreTrainedModel):
-    config_class = PretrainedConfig
-    # base_model_prefix = "vhhbert"
+    config_class = VHHBertConfig
+    base_model_prefix = "vhhbert"
     supports_gradient_checkpointing = True
     def __init__(self, config, tokenizer=None):
         print(f"config: {config}")
         super().__init__(config)
         self.num_labels = config.num_labels
+        self.vhhbert = RobertaForMaskedLM.from_pretrained(config._name_or_path, config=config)
+        # self.vhhbert = RobertaForMaskedLM.from_pretrained("COGNANO/VHHBERT")
         self.config = config
         if config.freeze:
             for param in self.vhhbert.parameters():
                 param.requires_grad = False
 
-        self.vhhbert = RobertaForMaskedLM.from_pretrained(config._name_or_path, config=config)
         # self.vhhbert = RobertaForMaskedLM.from_pretrained(config)
         self.tokenizer = tokenizer
 
@@ -225,8 +209,10 @@ class VHHBertForAminoAcidLevel(PreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        # final_input= outputs[0]
+
         final_input = outputs.hidden_states[-1]
+        # final_input = outputs.last_hidden_state
+
         logits = self.classifier(final_input)
 
         loss = None
@@ -270,6 +256,7 @@ class VHHBertForBindingSequenceClassification(PreTrainedModel):
         self.num_labels = config.num_labels
         self.config = config
         self.vhhbert = RobertaForMaskedLM.from_pretrained(config._name_or_path, config=config)
+        # self.vhhbert = RobertaForMaskedLM.from_pretrained("COGNANO/VHHBERT")
         if config.freeze:
             for param in self.vhhbert.parameters():
                 param.requires_grad = False
@@ -297,7 +284,7 @@ class VHHBertForBindingSequenceClassification(PreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # Get nanobody outputs
-        outputs = self.vhhbert.roberta(
+        outputs = self.vhhbert(
             input_ids,
             attention_mask=attention_mask,
             output_attentions=output_attentions,
@@ -307,7 +294,7 @@ class VHHBertForBindingSequenceClassification(PreTrainedModel):
 
         # Combine embeddings, cls token
         hidden_states = outputs.hidden_states[-1][:, 0]
-
+        # hidden_states = outputs.last_hidden_state[:, 0]
         # print(f"hidden_states: {hidden_states.shape}")
         # print(f"antigen_embedding: {antigen_embedding.shape}")
         # Perform pooling on antigen_hidden_states
@@ -374,6 +361,7 @@ class VHHBertForParatope(PreTrainedModel):
         self.config = config
     
         self.vhhbert = RobertaForMaskedLM.from_pretrained(config._name_or_path, config=config)
+        # self.vhhbert = RobertaForMaskedLM.from_pretrained("COGNANO/VHHBERT")
         if config.freeze:
             for param in self.vhhbert.parameters():
                 param.requires_grad = False 
@@ -419,6 +407,7 @@ class VHHBertForParatope(PreTrainedModel):
         )
         # final_input= outputs[0]
         hidden_states = outputs.hidden_states[-1]  # [batch_size, seq_len, hidden_size]
+        # hidden_states = outputs.last_hidden_state
         antigen_embedding = antigen_embedding.squeeze()
         
         # ag_min_pooled = torch.min(antigen_embedding, dim=1).values  # [batch_size, hidden_size]
@@ -463,12 +452,8 @@ class VHHBertForParatope(PreTrainedModel):
                 else:
                     loss = loss_fct(logits, labels)
             elif self.config.problem_type == "single_label_classification":
-                if self.num_labels == 2:
-                    loss_fct = BCEWithLogitsLoss()
-                    loss = loss_fct(logits, labels)
-                else:
-                    loss_fct = CrossEntropyLoss(ignore_index=-100)
-                    loss = loss_fct(logits.reshape(-1, self.num_labels), labels.reshape(-1).long())
+                loss_fct = CrossEntropyLoss(ignore_index=-100)
+                loss = loss_fct(logits.reshape(-1, self.num_labels), labels.reshape(-1).long())
                 
 
         if not return_dict:

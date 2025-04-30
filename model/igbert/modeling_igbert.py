@@ -1,0 +1,445 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Tuple
+from warnings import warn
+
+import torch
+import torch.utils.checkpoint
+from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
+import torch.autograd as autograd
+from torch import Tensor, nn
+from torch.nn import functional as F
+from transformers import BertForMaskedLM, PretrainedConfig, EsmModel, EsmConfig
+from transformers.activations import ACT2FN
+from transformers.modeling_outputs import (
+    BaseModelOutputWithPastAndCrossAttentions,
+    BaseModelOutputWithPoolingAndCrossAttentions,
+    MaskedLMOutput,
+    ModelOutput,
+    SequenceClassifierOutput,
+    TokenClassifierOutput,
+)
+from transformers.modeling_utils import PreTrainedModel, find_pruneable_heads_and_indices, prune_linear_layer
+from transformers.utils import logging
+from .configuration_igbert import IgBertConfig
+from ..modeling_utils import FocalLoss
+
+logger = logging.get_logger(__name__)
+
+class RMSELoss(nn.Module):
+    def __init__(self, eps=1e-6):
+        super().__init__()
+        self.mse = nn.MSELoss()
+        self.eps = eps
+
+    def forward(self, yhat, y):
+        loss = torch.sqrt(self.mse(yhat, y) + self.eps)
+        return loss
+
+
+class MCRMSELoss(nn.Module):
+    def __init__(self, num_scored=3):
+        super().__init__()
+        self.rmse = RMSELoss()
+        self.num_scored = num_scored
+
+    def forward(self, yhat, y):
+        score = 0
+        for i in range(self.num_scored):
+            score += self.rmse(yhat[:, :, i], y[:, :, i]) / self.num_scored
+        return score
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, hidden_size):
+        super().__init__()
+        self.fc1 = nn.Linear(hidden_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, x):
+        residual = x
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.fc2(out)
+        out += residual
+        out = self.relu(out)
+        return out
+
+class IgBertForSequenceClassification(PreTrainedModel):
+    config_class = IgBertConfig
+    base_model_prefix = "igbert"
+    supports_gradient_checkpointing = True
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.config = config
+        self.igbert = BertForMaskedLM.from_pretrained(config._name_or_path, config=config)
+
+        if config.freeze:
+            for param in self.igbert.parameters():
+                param.requires_grad = False
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple[torch.Tensor], SequenceClassifierOutput]:
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.igbert(
+            input_ids,
+            attention_mask=attention_mask,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        hidden_states = outputs.hidden_states[-1]
+        cls_token = hidden_states[:, 0]
+        pooled_output = cls_token
+        logits = self.classifier(pooled_output)
+
+        # logits = self.classifier(pooled_output)
+
+        loss = None
+        if labels is not None:
+            if self.config.problem_type is None:
+                if self.num_labels == 1:
+                    self.config.problem_type = "regression"
+                elif self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+                    self.config.problem_type = "single_label_classification"
+                else:
+                    self.config.problem_type = "multi_label_classification"
+
+            if self.config.problem_type == "regression":
+                loss_fct = MSELoss()
+                if self.num_labels == 1:
+                    loss = loss_fct(logits.squeeze(), labels.squeeze())
+                else:
+                    loss = loss_fct(logits, labels)
+            elif self.config.problem_type == "single_label_classification":
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            elif self.config.problem_type == "multi_label_classification":
+                loss_fct = BCEWithLogitsLoss()
+                loss = loss_fct(logits, labels)
+
+        if not return_dict:
+            output = (logits,) + outputs[2:]
+            return ((loss,) + output) if loss is not None else output
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+        )
+
+
+class IgBertForAminoAcidLevel(PreTrainedModel):
+    config_class = IgBertConfig
+    base_model_prefix = "igbert"
+    supports_gradient_checkpointing = True
+    def __init__(self, config, tokenizer=None):
+        print(f"config: {config}")
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.igbert = BertForMaskedLM.from_pretrained(config._name_or_path, config=config)
+
+        self.config = config
+        if config.freeze:
+            for param in self.igbert.parameters():
+                param.requires_grad = False
+
+        # self.vhhbert = RobertaForMaskedLM.from_pretrained(config)
+        self.tokenizer = tokenizer
+
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        # Initialize weights and apply final processing
+        self.post_init()
+
+
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        weight_mask: Optional[bool] = None,
+        post_token_length: Optional[bool] = None,
+    ) -> Union[Tuple[torch.Tensor], SequenceClassifierOutput]:
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
+            Labels for computing the sequence classification/regression loss. Indices should be in `[0, ...,
+            config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss), If
+            `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        outputs = self.igbert(
+            input_ids,
+            attention_mask=attention_mask,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        # final_input= outputs[0]
+        final_input = outputs.hidden_states[-1]
+        logits = self.classifier(final_input)
+
+        loss = None
+        if labels is not None:
+            # logits = logits[:, 1:1+labels.size(1), :]
+            if self.config.problem_type is None:
+                if self.num_labels == 1:
+                    self.config.problem_type = "regression"
+                elif self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+                    self.config.problem_type = "single_label_classification"
+                else:
+                    self.config.problem_type = "multi_label_classification"
+
+            if self.config.problem_type == "regression":
+                loss_fct = MCRMSELoss()
+                
+                if self.num_labels == 1:
+                    loss = loss_fct(logits.squeeze(), labels.squeeze())
+                else:
+                    loss = loss_fct(logits, labels)
+            elif self.config.problem_type == "single_label_classification":
+                loss_fct = CrossEntropyLoss(ignore_index=-100)
+
+                loss = loss_fct(logits.reshape(-1, self.num_labels), labels.reshape(-1).long())
+
+        if not return_dict:
+            output = (logits,) + outputs[2:]
+            return ((loss,) + output) if loss is not None else output
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+        )
+
+class IgBertForBindingSequenceClassification(PreTrainedModel):
+    config_class = IgBertConfig
+    base_model_prefix = "igbert"
+    supports_gradient_checkpointing = True
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.config = config
+        self.igbert = BertForMaskedLM.from_pretrained(config._name_or_path, config=config)
+        if config.freeze:
+            for param in self.igbert.parameters():
+                param.requires_grad = False
+        
+        esm_config = EsmConfig.from_pretrained('facebook/esm2_t33_650M_UR50D')
+
+        if  self.num_labels == 2:
+            self.classifier = nn.Linear(config.hidden_size + esm_config.hidden_size, 1)
+        else:
+            self.classifier = nn.Linear(config.hidden_size + esm_config.hidden_size, config.num_labels) 
+        # print(f"self.vhhbert: {self.vhhbert}")
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        antigen_embedding: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple[torch.Tensor], SequenceClassifierOutput]:
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # Get nanobody outputs
+        outputs = self.igbert(
+            input_ids,
+            attention_mask=attention_mask,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        # Combine embeddings, cls token
+        hidden_states = outputs.hidden_states[-1][:, 0]
+
+        # print(f"hidden_states: {hidden_states.shape}")
+        # print(f"antigen_embedding: {antigen_embedding.shape}")
+        # Perform pooling on antigen_hidden_states
+        antigen_embedding = antigen_embedding.squeeze(1)
+        # ag_min_pooled = torch.min(antigen_embedding, dim=1).values
+        ag_mean_pooled = torch.mean(antigen_embedding, dim=1)
+        # ag_max_pooled = torch.max(antigen_embedding, dim=1).values
+
+        # combined_min = torch.cat((hidden_states, ag_min_pooled), dim=-1)
+        combined_mean = torch.cat((hidden_states, ag_mean_pooled), dim=-1)
+        # combined_max = torch.cat((hidden_states, ag_max_pooled), dim=-1)
+
+        # logits_min = self.classifier(combined_min)
+        logits_mean = self.classifier(combined_mean)
+        # logits_max = self.classifier(combined_max)
+
+        # Voting mechanism
+        # logits = (logits_min + logits_mean + logits_max) / 3
+        logits = logits_mean
+
+        loss = None
+        if labels is not None:
+            if self.config.problem_type is None:
+                if self.num_labels == 1:
+                    self.config.problem_type = "regression"
+                elif self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+                    self.config.problem_type = "single_label_classification"
+                else:
+                    self.config.problem_type = "multi_label_classification"
+
+            if self.config.problem_type == "regression":
+                loss_fct = MSELoss()
+                if self.num_labels == 1:
+                    loss = loss_fct(logits.squeeze(), labels.squeeze())
+                else:
+                    loss = loss_fct(logits, labels)
+            elif self.config.problem_type == "single_label_classification":
+                if self.num_labels == 2:
+                    loss_fct = FocalLoss(gamma=2, alpha=0.25, task_type='binary')
+                    loss = loss_fct(logits, labels.view(-1, 1).float())
+                else:
+                    loss_fct = CrossEntropyLoss()
+                    loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            elif self.config.problem_type == "multi_label_classification":
+                loss_fct = BCEWithLogitsLoss()
+                loss = loss_fct(logits, labels)
+
+        if not return_dict:
+            output = (logits,) + outputs[2:]
+            return ((loss,) + output) if loss is not None else output
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+        )
+
+class IgBertForParatope(PreTrainedModel):
+    config_class = IgBertConfig
+    base_model_prefix = "igbert"
+    supports_gradient_checkpointing = True
+    def __init__(self, config, tokenizer=None):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.config = config
+    
+        self.igbert = BertForMaskedLM.from_pretrained(config._name_or_path, config=config)
+        if config.freeze:
+            for param in self.igbert.parameters():
+                param.requires_grad = False 
+        self.tokenizer = tokenizer
+        esm_config = EsmConfig.from_pretrained('facebook/esm2_t33_650M_UR50D')
+
+        self.residual_layers = nn.Sequential(
+            ResidualBlock(config.hidden_size + esm_config.hidden_size),
+            ResidualBlock(config.hidden_size + esm_config.hidden_size),
+            ResidualBlock(config.hidden_size + esm_config.hidden_size)
+        )
+        self.classifier = nn.Linear(config.hidden_size + esm_config.hidden_size, config.num_labels)
+        # Initialize weights and apply final processing
+        self.post_init()
+
+
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        antigen_embedding: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        weight_mask: Optional[bool] = None,
+        post_token_length: Optional[bool] = None,
+    ) -> Union[Tuple[torch.Tensor], SequenceClassifierOutput]:
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
+            Labels for computing the sequence classification/regression loss. Indices should be in `[0, ...,
+            config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss), If
+            `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        outputs = self.igbert(
+            input_ids,
+            attention_mask=attention_mask,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        # final_input= outputs[0]
+        hidden_states = outputs.hidden_states[-1]  # [batch_size, seq_len, hidden_size]
+        antigen_embedding = antigen_embedding.squeeze()
+        
+        # ag_min_pooled = torch.min(antigen_embedding, dim=1).values  # [batch_size, hidden_size]
+        ag_mean_pooled = torch.mean(antigen_embedding, dim=1)      # [batch_size, hidden_size]
+        # ag_max_pooled = torch.max(antigen_embedding, dim=1).values # [batch_size, hidden_size]
+        
+
+        batch_size, seq_len, hidden_size = hidden_states.shape
+        # ag_min_pooled = ag_min_pooled.unsqueeze(1).expand(-1, seq_len, -1)  # [batch_size, seq_len, hidden_size]
+        ag_mean_pooled = ag_mean_pooled.unsqueeze(1).expand(-1, seq_len, -1)  # [batch_size, seq_len, hidden_size]
+        # ag_max_pooled = ag_max_pooled.unsqueeze(1).expand(-1, seq_len, -1)  # [batch_size, seq_len, hidden_size]
+        
+        # combined_min = torch.cat([hidden_states, ag_min_pooled], dim=-1)
+        combined_mean = torch.cat([hidden_states, ag_mean_pooled], dim=-1)
+        # combined_max = torch.cat([hidden_states, ag_max_pooled], dim=-1)
+        
+        # final_input_min = self.residual_layers(combined_min)
+        final_input_mean = self.residual_layers(combined_mean)
+        # final_input_max = self.residual_layers(combined_max)
+        
+        # logits_min = self.classifier(final_input_min)
+        logits_mean = self.classifier(final_input_mean)
+        # logits_max = self.classifier(final_input_max)
+
+        logits = logits_mean
+
+        loss = None
+        if labels is not None:
+            # logits = logits[:, 1:1+labels.size(1), :]
+            if self.config.problem_type is None:
+                if self.num_labels == 1:
+                    self.config.problem_type = "regression"
+                elif self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+                    self.config.problem_type = "single_label_classification"
+                else:
+                    self.config.problem_type = "multi_label_classification"
+
+            if self.config.problem_type == "regression":
+                loss_fct = MCRMSELoss()
+                if self.num_labels == 1:
+                    loss = loss_fct(logits.squeeze(), labels.squeeze())
+                else:
+                    loss = loss_fct(logits, labels)
+            elif self.config.problem_type == "single_label_classification":
+                loss_fct = CrossEntropyLoss(ignore_index=-100)
+                loss = loss_fct(logits.reshape(-1, self.num_labels), labels.reshape(-1).long())
+                
+
+        if not return_dict:
+            output = (logits,) + outputs[2:]
+            return ((loss,) + output) if loss is not None else output
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+        )

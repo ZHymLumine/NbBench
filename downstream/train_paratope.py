@@ -15,6 +15,7 @@ import transformers
 import numpy as np
 from torch.utils.data import Dataset
 import pdb
+from scipy.special import expit
 
 
 os.environ["WANDB_DISABLED"] = "true"
@@ -29,7 +30,14 @@ sys.path.append(parent_dir)
 from model.nanobert.modeling_nanobert import NanoBertForParatope
 from model.vhhbert.modeling_vhhbert import VHHBertForParatope
 from model.antiberty.modeling_antiberty import AntiBERTyForParatope
-from model.iglm.modeling_iglm import IgLMForAminoAcidLevel
+from model.iglm.modeling_iglm import IgLMForParatope
+from model.igbert.modeling_igbert import IgBertForParatope
+from model.ablang_h.modeling_ablang_h import AbLangHForParatope
+from model.ablang_l.modeling_ablang_l import AbLangLForParatope
+from model.antiberta2.modeling_antiberta2 import Antiberta2ForParatope
+from model.antiberta2.modeling_antiberta2_cssp import Antiberta2CSSPForParatope
+from model.protbert.modeling_protbert import ProtBertForParatope
+from model.esm2.modeling_esm import ESMForParatope
 
 
 early_stopping = EarlyStoppingCallback(early_stopping_patience=20)
@@ -44,6 +52,7 @@ class ModelArguments:
     lora_dropout: float = field(default=0.05, metadata={"help": "dropout rate for LoRA"})
     lora_target_modules: str = field(default="query,value", metadata={"help": "where to perform LoRA"})
     tokenizer_name_or_path: Optional[str] = field(default="")
+    freeze: bool = field(default=True, metadata={"help": "whether to freeze the model"})
 
 @dataclass
 class DataArguments:
@@ -187,16 +196,24 @@ class DataCollatorForSupervisedDataset(object):
 Manually calculate the accuracy, f1, matthews_correlation, precision, recall with sklearn.
 """
 def calculate_metric_with_sklearn(logits: np.ndarray, labels: np.ndarray):
+    if logits.shape[-1] == 1:
+        logits = logits.squeeze(-1)
     predictions = np.argmax(logits, axis=-1)
     mask = labels != -100
     valid_preds = predictions[mask]
     valid_labels = labels[mask]
+
+    positive_class_probabilities = expit(logits)
+    valid_positive_class_probabilities = positive_class_probabilities[mask][:,1]
+    # logit > 0 → prediction: 1
+    # predictions = (positive_class_probabilities >= 0.5).astype(int)
     return {
         "accuracy": sklearn.metrics.accuracy_score(valid_labels, valid_preds),
         "f1": sklearn.metrics.f1_score(valid_labels, valid_preds, average="macro", zero_division=0),
-        "matthews_correlation": sklearn.metrics.matthews_corrcoef(valid_labels, valid_preds),
         "precision": sklearn.metrics.precision_score(valid_labels, valid_preds, average="macro", zero_division=0),
         "recall": sklearn.metrics.recall_score(valid_labels, valid_preds, average="macro", zero_division=0),
+        "auprc": sklearn.metrics.average_precision_score(valid_labels, valid_positive_class_probabilities),
+        "auroc": sklearn.metrics.roc_auc_score(valid_labels, valid_positive_class_probabilities),
     }
 
 """
@@ -218,7 +235,7 @@ def train():
 
     # load tokenizer
     if training_args.model_type in ['nanobert', 'vhhbert', 'antiberty', 'iglm']:
-        tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -226,7 +243,7 @@ def train():
             use_fast=True,
             trust_remote_code=True,
         )
-    elif training_args.model_type in ['esm-2']:
+    elif "esm-2" in training_args.model_type:
         tokenizer = EsmTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -236,7 +253,7 @@ def train():
             trust_remote_code=True,
         )
     else:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -260,7 +277,6 @@ def train():
     if training_args.model_type == 'nanobert':
         print(training_args.model_type)
         print('Loading nanobert model')
-        print(train_dataset.num_labels)
         model =  NanoBertForParatope.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -270,6 +286,7 @@ def train():
     elif training_args.model_type == 'vhhbert':  
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
+        print(f"model_args: {model_args}")
         model = VHHBertForParatope.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -288,44 +305,75 @@ def train():
     elif training_args.model_type == 'iglm':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = IgLMForAminoAcidLevel.from_pretrained(
+        model = IgLMForParatope.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
             trust_remote_code=True,
         )        
-    elif 'splicebert' in training_args.model_type:
+    elif training_args.model_type == 'igbert':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = IgBertForParatope.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )       
-    elif 'utrbert' in training_args.model_type:
+        )
+    elif training_args.model_type == 'antiberta2':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = Antiberta2ForParatope.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )  
-    elif 'utr-lm' in training_args.model_type:
+        )
+    elif training_args.model_type == 'antiberta2_cssp':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = Antiberta2CSSPForParatope.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )     
-        
-
+        )
+    elif training_args.model_type == 'ablang_h':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = AbLangHForParatope.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )          
+    elif training_args.model_type == 'ablang_l':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = AbLangLForParatope.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'protbert':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = ProtBertForParatope.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif "esm-2" in training_args.model_type:
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        print(f"model_args: {model_args}")
+        print(f"model_args type:{type(model_args)}")
+        model = ESMForParatope(
+            model_args,
+            num_labels=train_dataset.num_labels,
+        )
 
     # define trainer
     trainer = transformers.Trainer(model=model,

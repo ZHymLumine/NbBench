@@ -3,7 +3,8 @@ import csv
 import copy
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field    
+from torch.utils.data import DataLoader
 from typing import Optional, Dict, Sequence, Tuple, List
 
 import torch
@@ -29,17 +30,14 @@ sys.path.append(parent_dir)
 from model.nanobert.modeling_nanobert import NanoBertForAminoAcidLevel
 from model.vhhbert.modeling_vhhbert import VHHBertForAminoAcidLevel
 from model.antiberty.modeling_antiberty import AntiBERTyForAminoAcidLevel
-from model.antiberty.configuration_antiberty import AntiBERTyConfig
 from model.iglm.modeling_iglm import IgLMForAminoAcidLevel
-# from model.rnalm.modeling_rnalm import RnaLmForSequenceClassification
-# from model.rnalm.rnalm_config import RnaLmConfig
-# from model.rnafm.modeling_rnafm import RnaFmForSequenceClassification
-# from model.rnabert.modeling_rnabert import RnaBertForSequenceClassification
-# from model.rnamsm.modeling_rnamsm import RnaMsmForSequenceClassification
-# from model.splicebert.modeling_splicebert import SpliceBertForSequenceClassification
-# from model.utrbert.modeling_utrbert import UtrBertForSequenceClassification
-# from model.utrlm.modeling_utrlm import UtrLmForSequenceClassification
-# from tokenizer.tokenization_opensource import OpenRnaLMTokenizer
+from model.igbert.modeling_igbert import IgBertForAminoAcidLevel
+from model.ablang_h.modeling_ablang_h import AbLangHForAminoAcidLevel
+from model.ablang_l.modeling_ablang_l import AbLangLForAminoAcidLevel
+from model.antiberta2.modeling_antiberta2 import Antiberta2ForAminoAcidLevel
+from model.antiberta2.modeling_antiberta2_cssp import Antiberta2CSSPForAminoAcidLevel
+from model.protbert.modeling_protbert import ProtBertForAminoAcidLevel
+from model.esm2.modeling_esm import ESMForAminoAcidLevel
 
 
 early_stopping = EarlyStoppingCallback(early_stopping_patience=20)
@@ -54,7 +52,8 @@ class ModelArguments:
     lora_dropout: float = field(default=0.05, metadata={"help": "dropout rate for LoRA"})
     lora_target_modules: str = field(default="query,value", metadata={"help": "where to perform LoRA"})
     tokenizer_name_or_path: Optional[str] = field(default="")
-
+    freeze: bool = field(default=True, metadata={"help": "whether to freeze the model"})
+    
 @dataclass
 class DataArguments:
     data_path: str = field(default=None, metadata={"help": "Path to the training data."})
@@ -143,10 +142,9 @@ class SupervisedDataset(Dataset):
         # ensure tokenier
         print(type(texts[0]))
         print(texts[0])
-        test_example = tokenizer.tokenize(texts[0], add_special_tokens=False)
+        test_example = tokenizer(texts[0], add_special_tokens=False)
         print(test_example)
         print(len(test_example))
-        print(tokenizer(texts[0]))
         self.labels = labels
         self.num_labels = 4
         self.texts = texts
@@ -228,7 +226,7 @@ def train():
             use_fast=True,
             trust_remote_code=True,
         )
-    elif training_args.model_type in ['esm-2']:
+    elif "esm-2" in training_args.model_type:
         tokenizer = EsmTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -237,13 +235,15 @@ def train():
             use_fast=True,
             trust_remote_code=True,
         )
-    elif training_args.model_type in ['antiberty']:
-        VOCAB_FILE = os.path.join(model_args.model_name_or_path, "vocab.txt")
-        tokenizer = BertTokenizer.from_pretrained(
+    else:
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
-            do_lower_case=False
+            cache_dir=training_args.cache_dir,
+            model_max_length=training_args.model_max_length,
+            padding_side="right",
+            use_fast=True,
+            trust_remote_code=True,
         )
-        print(tokenizer.get_vocab())
         
     # define datasets and data collator
     train_dataset = SupervisedDataset(tokenizer=tokenizer, args=training_args,
@@ -254,6 +254,52 @@ def train():
                                      data_path=os.path.join(data_args.data_path, data_args.data_test_path))
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer,args=training_args)
     print(f'# train: {len(train_dataset)},val:{len(val_dataset)},test:{len(test_dataset)}')
+
+    train_loader = DataLoader(train_dataset, batch_size=training_args.per_device_train_batch_size, shuffle=True, num_workers=training_args.dataloader_num_workers, pin_memory=training_args.dataloader_pin_memory, collate_fn=data_collator)
+    val_loader = DataLoader(val_dataset, batch_size=training_args.per_device_eval_batch_size, shuffle=False, num_workers=training_args.dataloader_num_workers, pin_memory=training_args.dataloader_pin_memory, collate_fn=data_collator)
+    test_loader = DataLoader(test_dataset, batch_size=training_args.per_device_eval_batch_size, shuffle=False, num_workers=training_args.dataloader_num_workers, pin_memory=training_args.dataloader_pin_memory, collate_fn=data_collator)
+    
+    # 检查train，val，test中的数据的input ids的长度
+    # def check_input_ids_length(dataloader, name):
+    #     for batch in dataloader:
+    #         input_ids = batch['input_ids']
+    #         lengths = [len(ids) for ids in input_ids]
+    #         print(f"{name} input_ids lengths: {lengths}")
+    def check_input_ids_length_exceeds_160(dataloader, name):
+        for batch in dataloader:
+            input_ids = batch['input_ids']
+            for ids in input_ids:
+                if len(ids) > 160:
+                    print(f"{name} input_ids length exceeds 160: {len(ids)}")
+
+    def check_input_ids_max_value(dataloader, name):
+        for batch in dataloader:
+            input_ids = batch['input_ids']
+            for ids in input_ids:
+                if any(id >= 24 for id in ids):
+                    print(f"{name} input_ids contain values >= 24")
+    def check_empty_input_ids(dataloader, name):
+        for batch in dataloader:
+            input_ids = batch['input_ids']
+            for ids in input_ids:
+                if len(ids) == 0:
+                    print(f"{name} contains empty input_ids")
+
+    # check_empty_input_ids(train_loader, "Train")
+    # check_empty_input_ids(val_loader, "Validation")
+    # check_empty_input_ids(test_loader, "Test")
+    # check_input_ids_max_value(train_loader, "Train")
+    # check_input_ids_max_value(val_loader, "Validation")
+    # check_input_ids_max_value(test_loader, "Test")
+
+    # check_input_ids_length_exceeds_160(train_loader, "Train")
+    # check_input_ids_length_exceeds_160(val_loader, "Validation")
+    # check_input_ids_length_exceeds_160(test_loader, "Test")
+
+
+    # check_input_ids_length(train_loader, "Train")
+    # check_input_ids_length(val_loader, "Validation")
+    # check_input_ids_length(test_loader, "Test")
 
     # load model
     if training_args.model_type == 'nanobert':
@@ -269,7 +315,12 @@ def train():
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
         print(f"model_args: {model_args}")
-        model = VHHBertForAminoAcidLevel(model_args)
+        model = VHHBertForAminoAcidLevel.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
     elif training_args.model_type == 'antiberty':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
@@ -288,39 +339,69 @@ def train():
             num_labels=train_dataset.num_labels,
             trust_remote_code=True,
         )        
-    elif 'splicebert' in training_args.model_type:
+    elif training_args.model_type == 'igbert':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = IgBertForAminoAcidLevel.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )       
-    elif 'utrbert' in training_args.model_type:
+        )
+    elif training_args.model_type == 'antiberta2':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = Antiberta2ForAminoAcidLevel.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )  
-    elif 'utr-lm' in training_args.model_type:
+        )
+    elif training_args.model_type == 'antiberta2_cssp':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = Antiberta2CSSPForAminoAcidLevel.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'ablang_h':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = AbLangHForAminoAcidLevel.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
             trust_remote_code=True,
         )     
-        
-
-
+    elif training_args.model_type == 'ablang_l':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = AbLangLForAminoAcidLevel.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'protbert':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = ProtBertForAminoAcidLevel.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif "esm-2" in training_args.model_type:
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        print(f"model_args: {model_args}")
+        print(f"model_args type:{type(model_args)}")
+        model = ESMForAminoAcidLevel(
+            model_args,
+            num_labels=train_dataset.num_labels,    
+        )
     # define trainer
     trainer = transformers.Trainer(model=model,
                                    tokenizer=tokenizer,

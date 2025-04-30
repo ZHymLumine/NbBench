@@ -4,7 +4,7 @@
 export TOKENIZERS_PARALLELISM=false
 gpu_device="0"
 nproc_per_node=1
-data_root="/home/yzhang/research/nanobody/data"
+data_root="/home/yzhang/research/nanobody_benchmark/data"
 model_root="./checkpoint"
 MODEL_TYPE='vhhbert'
 seed=12345

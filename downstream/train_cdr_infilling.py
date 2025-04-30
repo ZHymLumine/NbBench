@@ -4,6 +4,7 @@ import copy
 import json
 import logging
 from dataclasses import dataclass, field
+from torch.utils.data import DataLoader
 from typing import Optional, Dict, Sequence, Tuple, List
 
 import torch
@@ -30,15 +31,13 @@ from model.nanobert.modeling_nanobert import NanoBertForAminoAcidLevel
 from model.vhhbert.modeling_vhhbert import VHHBertForAminoAcidLevel
 from model.antiberty.modeling_antiberty import AntiBERTyForAminoAcidLevel
 from model.iglm.modeling_iglm import IgLMForAminoAcidLevel
-# from model.rnalm.modeling_rnalm import RnaLmForSequenceClassification
-# from model.rnalm.rnalm_config import RnaLmConfig
-# from model.rnafm.modeling_rnafm import RnaFmForSequenceClassification
-# from model.rnabert.modeling_rnabert import RnaBertForSequenceClassification
-# from model.rnamsm.modeling_rnamsm import RnaMsmForSequenceClassification
-# from model.splicebert.modeling_splicebert import SpliceBertForSequenceClassification
-# from model.utrbert.modeling_utrbert import UtrBertForSequenceClassification
-# from model.utrlm.modeling_utrlm import UtrLmForSequenceClassification
-# from tokenizer.tokenization_opensource import OpenRnaLMTokenizer
+from model.igbert.modeling_igbert import IgBertForAminoAcidLevel
+from model.ablang_h.modeling_ablang_h import AbLangHForAminoAcidLevel
+from model.ablang_l.modeling_ablang_l import AbLangLForAminoAcidLevel
+from model.antiberta2.modeling_antiberta2 import Antiberta2ForAminoAcidLevel
+from model.antiberta2.modeling_antiberta2_cssp import Antiberta2CSSPForAminoAcidLevel
+from model.protbert.modeling_protbert import ProtBertForAminoAcidLevel
+from model.esm2.modeling_esm import ESMForAminoAcidLevel
 
 
 early_stopping = EarlyStoppingCallback(early_stopping_patience=20)
@@ -53,6 +52,7 @@ class ModelArguments:
     lora_dropout: float = field(default=0.05, metadata={"help": "dropout rate for LoRA"})
     lora_target_modules: str = field(default="query,value", metadata={"help": "where to perform LoRA"})
     tokenizer_name_or_path: Optional[str] = field(default="")
+    freeze: bool = field(default=True, metadata={"help": "whether to freeze the model"})
 
 @dataclass
 class DataArguments:
@@ -298,7 +298,7 @@ def train():
     set_seed(training_args)
     # load tokenizer
     if training_args.model_type in ['nanobert', 'vhhbert', 'antiberty', 'iglm']:
-        tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -306,7 +306,7 @@ def train():
             use_fast=True,
             trust_remote_code=True,
         )
-    elif training_args.model_type in ['esm-2']:
+    elif "esm-2" in training_args.model_type:
         tokenizer = EsmTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -316,7 +316,7 @@ def train():
             trust_remote_code=True,
         )
     else:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(
+        tokenizer = RobertaTokenizer.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -350,12 +350,13 @@ def train():
     elif training_args.model_type == 'vhhbert':  
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
+        print(f"model_args: {model_args}")
         model = VHHBertForAminoAcidLevel.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
             trust_remote_code=True,
-        )        
+        )
     elif training_args.model_type == 'antiberty':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
@@ -374,37 +375,69 @@ def train():
             num_labels=train_dataset.num_labels,
             trust_remote_code=True,
         )        
-    elif 'splicebert' in training_args.model_type:
+    elif training_args.model_type == 'igbert':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = IgBertForAminoAcidLevel.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'antiberta2':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = Antiberta2ForAminoAcidLevel.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'antiberta2_cssp':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = Antiberta2CSSPForAminoAcidLevel.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
+            trust_remote_code=True,
+        )
+    elif training_args.model_type == 'ablang_h':
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        model = AbLangHForAminoAcidLevel.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+            num_labels=train_dataset.num_labels,
             trust_remote_code=True,
         )       
-    elif 'utrbert' in training_args.model_type:
+    elif training_args.model_type == 'ablang_l':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = AbLangLForAminoAcidLevel.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )  
-    elif 'utr-lm' in training_args.model_type:
+        )
+    elif training_args.model_type == 'protbert':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        model = AutoModel.from_pretrained(
+        model = ProtBertForAminoAcidLevel.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
-            problem_type="single_label_classification",
             trust_remote_code=True,
-        )     
-        
+        )
+    elif "esm-2" in training_args.model_type:
+        print(training_args.model_type)
+        print(f'Loading {training_args.model_type} model')
+        print(f"model_args: {model_args}")
+        print(f"model_args type:{type(model_args)}")
+        model = ESMForAminoAcidLevel(
+            model_args,
+            num_labels=train_dataset.num_labels,
+        )
 
 
     # define trainer

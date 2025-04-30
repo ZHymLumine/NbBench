@@ -1,12 +1,12 @@
 #!/bin/bash
-
+SECONDS=0
 # Common settings
 export TOKENIZERS_PARALLELISM=false
-gpu_device="0"
+gpu_device="3"
 nproc_per_node=1
-data_root="/home/yzhang/research/nanobody/data"
+data_root="/home/yzhang/research/nanobody_benchmark/data"
 model_root="./checkpoint"
-MODEL_TYPE='iglm'
+MODEL_TYPE='antiberta2_cssp'
 seed=12345
 
 master_port=$(shuf -i 10000-45000 -n 1)
@@ -20,12 +20,12 @@ task='CDRs_classification'
 DATA_PATH=${data_root}/downstream/${task}
 batch_size=32
 gradient_accumulation=2
-model_max_length=185
+model_max_length=256
 lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}_lr_${lr}
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
 
 echo ${MODEL_PATH}
 
@@ -40,7 +40,7 @@ downstream/train_cdr_classification.py \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
+    --num_train_epochs 50 \
     --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -56,14 +56,14 @@ downstream/train_cdr_classification.py \
 echo "Starting CDR infilling task..."
 task='CDRs_infilling'
 DATA_PATH=${data_root}/downstream/${task}
-batch_size=16
+batch_size=32
 gradient_accumulation=2
-model_max_length=185
+model_max_length=256
 lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
 
 ${EXEC_PREFIX} \
 downstream/train_cdr_infilling.py \
@@ -76,7 +76,7 @@ downstream/train_cdr_infilling.py \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
+    --num_train_epochs 50 \
     --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -97,18 +97,16 @@ task='AVIDa-SARS-CoV-2'
 DATA_PATH=${data_root}/downstream/${task}
 batch_size=32
 gradient_accumulation=2
-model_max_length=185
+model_max_length=256
 lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}  
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}  
 seed=12345
 
 
 ${EXEC_PREFIX} \
-    --nproc_per_node=${nproc_per_node} \
-    --master_port=29500 \
     downstream/train_interaction.py \
     --model_name_or_path $MODEL_PATH \
     --data_path  $DATA_PATH/$data \
@@ -119,7 +117,7 @@ ${EXEC_PREFIX} \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 30 \
+    --num_train_epochs 50 \
     --save_steps 400 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -130,8 +128,6 @@ ${EXEC_PREFIX} \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16 \
-    --ddp_backend nccl
 
 # 3.2 AVIDa-hIL6
 task='AVIDa-hIL6'
@@ -143,13 +139,11 @@ lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val_sampled.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}  
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}  
 seed=12345
 
 
 ${EXEC_PREFIX} \
-    --nproc_per_node=${nproc_per_node} \
-    --master_port=29501 \
     downstream/train_interaction.py \
     --model_name_or_path $MODEL_PATH \
     --data_path  $DATA_PATH/$data \
@@ -161,7 +155,7 @@ ${EXEC_PREFIX} \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
     --num_train_epochs 30 \
-    --save_steps 400 \
+    --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
     --eval_steps 200 \
@@ -177,12 +171,12 @@ task='AVIDa-hTNFa'
 DATA_PATH=${data_root}/downstream/${task}
 batch_size=32
 gradient_accumulation=2
-model_max_length=185
+model_max_length=256
 lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
 
 ${EXEC_PREFIX} \
     downstream/train_interaction.py \
@@ -195,7 +189,7 @@ ${EXEC_PREFIX} \
     --per_device_eval_batch_size 16 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
+    --num_train_epochs 50 \
     --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -213,12 +207,12 @@ task='paratope'
 DATA_PATH=${data_root}/downstream/${task}
 batch_size=32
 gradient_accumulation=2
-model_max_length=185
+model_max_length=256
 lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
 
 
 ${EXEC_PREFIX} \
@@ -232,7 +226,7 @@ downstream/train_paratope.py \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
+    --num_train_epochs 50 \
     --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -243,7 +237,6 @@ downstream/train_paratope.py \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16
 
 # 5. Polyreactivity Prediction Task
 echo "Starting polyreactivity prediction task..."
@@ -251,12 +244,12 @@ task='polyreaction'
 DATA_PATH=${data_root}/downstream/${task}
 batch_size=32
 gradient_accumulation=2
-model_max_length=185
+model_max_length=256
 lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
 
 
 ${EXEC_PREFIX} \
@@ -270,7 +263,7 @@ downstream/train_polyreaction.py \
     --per_device_eval_batch_size 8 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
+    --num_train_epochs 50 \
     --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -281,7 +274,6 @@ downstream/train_polyreaction.py \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16
 
 # 6. Sdab Type Prediction Task
 echo "Starting sdab type prediction task..."
@@ -289,12 +281,12 @@ task='sdabtype'
 DATA_PATH=${data_root}/downstream/${task}
 batch_size=32
 gradient_accumulation=2
-model_max_length=185
+model_max_length=256
 lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
 
 ${EXEC_PREFIX} \
 downstream/train_sdab_type.py \
@@ -307,7 +299,7 @@ downstream/train_sdab_type.py \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
+    --num_train_epochs 50 \
     --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -325,12 +317,12 @@ task='vhh_affinity'
 DATA_PATH=${data_root}/downstream/${task}
 batch_size=32
 gradient_accumulation=2
-model_max_length=185
+model_max_length=256
 lr=5e-3
 data=''
 data_file_train=train_score.csv; data_file_val=val_score.csv; data_file_test=test_score.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/score/opensource/${MODEL_TYPE}
+OUTPUT_PATH=./outputs/probe/${task}/score/opensource/${MODEL_TYPE}_lr_${lr}
 
 ${EXEC_PREFIX} \
     downstream/train_vhh_affinity.py \
@@ -343,7 +335,7 @@ ${EXEC_PREFIX} \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
+    --num_train_epochs 50 \
     --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -354,10 +346,9 @@ ${EXEC_PREFIX} \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16
 
 data_file_train=train_seq.csv; data_file_val=val_seq.csv; data_file_test=test_seq.csv
-OUTPUT_PATH=./outputs/ft/${task}/seq/opensource/${MODEL_TYPE}
+OUTPUT_PATH=./outputs/probe/${task}/seq/opensource/${MODEL_TYPE}_lr_${lr}
 
 ${EXEC_PREFIX} \
     downstream/train_vhh_affinity.py \
@@ -370,7 +361,7 @@ ${EXEC_PREFIX} \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
+    --num_train_epochs 50 \
     --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -381,7 +372,6 @@ ${EXEC_PREFIX} \
     --log_level info \
     --seed ${seed} \
     --model_type ${MODEL_TYPE} \
-    --fp16
 
 # 8. Thermostability Prediction Task
 echo "Starting thermostability prediction task..."
@@ -389,12 +379,12 @@ task='thermo'
 DATA_PATH=${data_root}/downstream/${task}
 batch_size=32
 gradient_accumulation=2
-model_max_length=185
+model_max_length=256
 lr=5e-3
 data=''
 data_file_train=train_tm.csv; data_file_val=val_tm.csv; data_file_test=test_tm.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/tm_lr_${lr}/opensource/${MODEL_TYPE}
+OUTPUT_PATH=./outputs/probe/${task}/tm_lr_${lr}/opensource/${MODEL_TYPE}_lr_${lr}
 
 ${EXEC_PREFIX} \
     downstream/train_thermo.py \
@@ -407,7 +397,7 @@ ${EXEC_PREFIX} \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
+    --num_train_epochs 50 \
     --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -420,7 +410,7 @@ ${EXEC_PREFIX} \
     --model_type ${MODEL_TYPE}
 
 data_file_train=train_seq.csv; data_file_val=val_seq.csv; data_file_test=test_seq.csv
-OUTPUT_PATH=./outputs/ft/${task}/seq_lr_${lr}/opensource/${MODEL_TYPE}
+OUTPUT_PATH=./outputs/probe/${task}/seq_lr_${lr}/opensource/${MODEL_TYPE}_lr_${lr}
 
 ${EXEC_PREFIX} \
     downstream/train_thermo.py \
@@ -433,7 +423,7 @@ ${EXEC_PREFIX} \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps ${gradient_accumulation} \
     --learning_rate ${lr} \
-    --num_train_epochs 100 \
+    --num_train_epochs 50 \
     --save_steps 200 \
     --output_dir ${OUTPUT_PATH}/${data} \
     --evaluation_strategy steps \
@@ -446,3 +436,7 @@ ${EXEC_PREFIX} \
     --model_type ${MODEL_TYPE}
 
 echo "All tasks completed successfully!" 
+
+
+duration=$SECONDS
+echo "Total runtime: $((duration / 3600))h $(((duration % 3600) / 60))m $((duration % 60))s"

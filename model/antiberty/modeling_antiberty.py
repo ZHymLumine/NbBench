@@ -10,7 +10,7 @@ from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 import torch.autograd as autograd
 from torch import Tensor, nn
 from torch.nn import functional as F
-from transformers import RobertaForMaskedLM, AutoModel
+from transformers import RobertaForMaskedLM, AutoModel, EsmModel, EsmConfig
 from transformers.activations import ACT2FN
 from transformers.modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
@@ -28,8 +28,8 @@ from transformers.models.bert.modeling_bert import (
     BertLMPredictionHead, 
     ModelOutput
 )
-
 from .configuration_antiberty import AntiBERTyConfig
+from ..modeling_utils import FocalLoss
 
 
 logger = logging.get_logger(__name__)
@@ -264,6 +264,9 @@ class AntiBERTyForSequenceClassification(PreTrainedModel):
         self.num_labels = config.num_labels
         self.config = config
         self.antiberty = AntiBERTy.from_pretrained(config._name_or_path, config=config)
+        if config.freeze:
+            for param in self.antiberty.parameters():
+                param.requires_grad = False
         self.pooler = AntiBERTyPooler(config)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
@@ -327,8 +330,6 @@ class AntiBERTyForSequenceClassification(PreTrainedModel):
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
         )
 
 
@@ -343,6 +344,9 @@ class AntiBERTyForAminoAcidLevel(PreTrainedModel):
     
         self.antiberty = AntiBERTy.from_pretrained(config._name_or_path, config=config)
 
+        if config.freeze:
+            for param in self.antiberty.parameters():
+                param.requires_grad = False
         self.tokenizer = tokenizer
 
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
@@ -408,8 +412,6 @@ class AntiBERTyForAminoAcidLevel(PreTrainedModel):
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
         )
 
 class AntiBERTyForBindingSequenceClassification(PreTrainedModel):
@@ -422,11 +424,15 @@ class AntiBERTyForBindingSequenceClassification(PreTrainedModel):
         self.num_labels = config.num_labels
         self.config = config
         self.antiberty = AntiBERTy.from_pretrained(config._name_or_path, config=config)
-        
+        if config.freeze:
+            for param in self.antiberty.parameters():
+                param.requires_grad = False
         esm_config = EsmConfig.from_pretrained('facebook/esm2_t33_650M_UR50D')
-        self.classifier = nn.Linear(config.hidden_size + esm_config.hidden_size, config.num_labels)
+        if self.num_labels == 2:
+            self.classifier = nn.Linear(config.hidden_size + esm_config.hidden_size, 1)
+        else:
+            self.classifier = nn.Linear(config.hidden_size + esm_config.hidden_size, config.num_labels) 
 
-        # print(f"self.antiberty: {self.antiberty}")
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -458,20 +464,21 @@ class AntiBERTyForBindingSequenceClassification(PreTrainedModel):
         # print(f"antigen_embedding: {antigen_embedding.shape}")
         # Perform pooling on antigen_hidden_states
         antigen_embedding = antigen_embedding.squeeze(1)
-        ag_min_pooled = torch.min(antigen_embedding, dim=1).values
+        # ag_min_pooled = torch.min(antigen_embedding, dim=1).values
         ag_mean_pooled = torch.mean(antigen_embedding, dim=1)
-        ag_max_pooled = torch.max(antigen_embedding, dim=1).values
+        # ag_max_pooled = torch.max(antigen_embedding, dim=1).values
 
-        combined_min = torch.cat((hidden_states, ag_min_pooled), dim=-1)
+        # combined_min = torch.cat((hidden_states, ag_min_pooled), dim=-1)
         combined_mean = torch.cat((hidden_states, ag_mean_pooled), dim=-1)
-        combined_max = torch.cat((hidden_states, ag_max_pooled), dim=-1)
+        # combined_max = torch.cat((hidden_states, ag_max_pooled), dim=-1)
 
-        logits_min = self.classifier(combined_min)
+        # logits_min = self.classifier(combined_min)
         logits_mean = self.classifier(combined_mean)
-        logits_max = self.classifier(combined_max)
+        # logits_max = self.classifier(combined_max)
 
         # Voting mechanism
-        logits = (logits_min + logits_mean + logits_max) / 3
+        # logits = (logits_min + logits_mean + logits_max) / 3
+        logits = logits_mean
 
         loss = None
         if labels is not None:
@@ -490,8 +497,12 @@ class AntiBERTyForBindingSequenceClassification(PreTrainedModel):
                 else:
                     loss = loss_fct(logits, labels)
             elif self.config.problem_type == "single_label_classification":
-                loss_fct = CrossEntropyLoss()
-                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+                if self.num_labels == 2:
+                    loss_fct = FocalLoss(gamma=2, alpha=0.25, task_type='binary')
+                    loss = loss_fct(logits, labels.view(-1, 1).float())
+                else:
+                    loss_fct = CrossEntropyLoss()
+                    loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
             elif self.config.problem_type == "multi_label_classification":
                 loss_fct = BCEWithLogitsLoss()
                 loss = loss_fct(logits, labels)
@@ -503,8 +514,6 @@ class AntiBERTyForBindingSequenceClassification(PreTrainedModel):
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
         )
 
 class AntiBERTyForParatope(PreTrainedModel):
@@ -517,7 +526,9 @@ class AntiBERTyForParatope(PreTrainedModel):
         self.config = config
     
         self.antiberty = AntiBERTy.from_pretrained(config._name_or_path, config=config)
-
+        if config.freeze:
+            for param in self.antiberty.parameters():
+                param.requires_grad = False
         self.tokenizer = tokenizer
         esm_config = EsmConfig.from_pretrained('facebook/esm2_t33_650M_UR50D')
 
@@ -568,23 +579,24 @@ class AntiBERTyForParatope(PreTrainedModel):
         
 
         batch_size, seq_len, hidden_size = hidden_states.shape
-        ag_min_pooled = ag_min_pooled.unsqueeze(1).expand(-1, seq_len, -1)  # [batch_size, seq_len, hidden_size]
+        # ag_min_pooled = ag_min_pooled.unsqueeze(1).expand(-1, seq_len, -1)  # [batch_size, seq_len, hidden_size]
         ag_mean_pooled = ag_mean_pooled.unsqueeze(1).expand(-1, seq_len, -1)  # [batch_size, seq_len, hidden_size]
-        ag_max_pooled = ag_max_pooled.unsqueeze(1).expand(-1, seq_len, -1)  # [batch_size, seq_len, hidden_size]
+        # ag_max_pooled = ag_max_pooled.unsqueeze(1).expand(-1, seq_len, -1)  # [batch_size, seq_len, hidden_size]
         
-        combined_min = torch.cat([hidden_states, ag_min_pooled], dim=-1)
+        # combined_min = torch.cat([hidden_states, ag_min_pooled], dim=-1)
         combined_mean = torch.cat([hidden_states, ag_mean_pooled], dim=-1)
-        combined_max = torch.cat([hidden_states, ag_max_pooled], dim=-1)
+        # combined_max = torch.cat([hidden_states, ag_max_pooled], dim=-1)
         
-        final_input_min = self.residual_layers(combined_min)
+        # final_input_min = self.residual_layers(combined_min)
         final_input_mean = self.residual_layers(combined_mean)
-        final_input_max = self.residual_layers(combined_max)
+        # final_input_max = self.residual_layers(combined_max)
         
-        logits_min = self.classifier(final_input_min)
+        # logits_min = self.classifier(final_input_min)
         logits_mean = self.classifier(final_input_mean)
-        logits_max = self.classifier(final_input_max)
+        # logits_max = self.classifier(final_input_max)
 
-        logits = (logits_min + logits_mean + logits_max) / 3
+        # logits = (logits_min + logits_mean + logits_max) / 3
+        logits = logits_mean
 
         loss = None
         if labels is not None:
@@ -614,6 +626,4 @@ class AntiBERTyForParatope(PreTrainedModel):
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
         )

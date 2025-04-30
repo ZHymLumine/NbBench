@@ -7,11 +7,12 @@ gpu_device="1"
 nproc_per_node=1
 master_port=$(shuf -i 10000-45000 -n 1)
 echo "Using port $master_port for communication."
+EXEC_PREFIX="env CUDA_VISIBLE_DEVICES=$gpu_device torchrun --nproc_per_node=$nproc_per_node --master_port=$master_port"
 
 export TOKENIZERS_PARALLELISM=false
 
 
-data_root=/home/yzhang/research/nanobody/data
+data_root=/home/yzhang/research/nanobody_benchmark/data
 model_root=./checkpoint
 
 
@@ -27,21 +28,16 @@ lr=5e-3
 data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE}  
+# OUTPUT_PATH=./outputs/ft/${task}/opensource/${MODEL_TYPE} 
+OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}  
+
 seed=12345
 
         
 
-# TODO: 需要修改
-master_port=$(shuf -i 10000-45000 -n 1)
-echo "Using port $master_port for communication."
-
-# EXEC_PREFIX="env CUDA_VISIBLE_DEVICES=$gpu_device torchrun --nproc_per_node=$nproc_per_node --master_port=$master_port"
-
 echo ${MODEL_PATH}
 
-# ${EXEC_PREFIX} \
-CUDA_VISIBLE_DEVICES=1 python \
+${EXEC_PREFIX} \
 downstream/train_polyreaction.py \
     --model_name_or_path $MODEL_PATH \
     --data_path  $DATA_PATH/$data \
