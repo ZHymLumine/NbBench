@@ -1,195 +1,160 @@
-# BEACON: Benchmark for Comprehensive RNA Tasks and Language Models
+# NanobodyBenchmark: A Benchmark Platform for Single-Domain Antibody Language Models
 
-This is the official codebase of the paper [BEACON: Benchmark for Comprehensive RNA Tasks and Language Models](https://arxiv.org/abs/2406.10391)
+This is the official repository for NanobodyBenchmark, designed to evaluate and compare various pre-trained language models for single-domain antibodies on downstream tasks.
 
 <p align="center">
     <img src="images/main.png" width="100%" height="100%">
 </p>
 
-## 🔥 Update
-
-- [07/25]🔥 Updating models list and usage!
-- [06/11]🔥 BEACON is coming! We release the [paper](https://arxiv.org/abs/2406.10391), [code](https://github.com/terry-r123/RNABenchmark), [data](https://drive.google.com/drive/folders/19ddrwI8ycvIxkgSV3gDo_VunLofYd4-6?usp=sharing), and [models](https://drive.google.com/drive/folders/1455JIOGV5X96CCgxCT-QgVu0xbXFz72X?usp=sharing) for BEACON!
 
 ## Prerequisites
 
 ### Installation
 
-important libs: torch==1.13.1+cu117, transformers==4.38.1
+Key dependencies: torch==1.13.1+cu117, transformers==4.38.1
 
 ```bash
-git clone https://github.com/terry-r123/RNABenchmark.git
-cd NanobodyBenchmark
-conda create -n nanobench python=3.8 -y
+git clone https://github.com/ZHymLumine/NbBench.git
+cd NbBench
+conda create -n nbbench python=3.8 -y
 pip install -r requirements.txt
 ```
 
 ## 🔍 Tasks and Datasets
 
-Datasets of RNA tasks can be found in [Google Drive](https://drive.google.com/drive/folders/19ddrwI8ycvIxkgSV3gDo_VunLofYd4-6?usp=sharing)
-
-Model checkpoints of opensource RNA language models and BEACON-B can be found in [Google Drive](https://drive.google.com/drive/folders/1455JIOGV5X96CCgxCT-QgVu0xbXFz72X?usp=sharing)
-
-### Data structure
+### Data Structure
 
 ```
-RNABenchmark
+NanobodyBenchmark
 ├── checkpoint
 │   └── opensource
-|       ├── rna-fm
-|       ├── rnabert
-|       ├── rnamsm
-|       ├── splicebert-human510
-|       ├── splicebert-ms510
-|       ├── splicebert-ms1024
-|       ├── utr-lm-mrl
-|       ├── utr-lm-te-el
-|       ├── utrbert-3mer
-|       ├── utrbert-4mer
-|       ├── utrbert-5mer
-|       └── utrbert-6mer
-│   └── baseline
-|       ├── BEACON-B
-|       └── BEACON-B512
-├── data
-│    ├── ContactMap
-│    ├── CRISPROffTarget
-│    ├── CRISPROnTarget
-│    ├── Degradation
-│    ├── DistanceMap
-│    ├── Isoform
-│    ├── MeanRibosomeLoading
-│    ├── Modification
-│    ├── NoncodingRNAFamily
-│    ├── ProgrammableRNASwitches
-│    ├── Secondary_structure_prediction
-│    ├── SpliceAI
-│    └── StructuralScoreImputation
+│       ├── esm2
+│       ├── protbert
+│       ├── ablang_l
+│       ├── ablang_h
+│       ├── antiberta2
+│       ├── vhhbert
+│       ├── igbert
+│       ├── iglm
+│       ├── antiberty
+│       └── nanobert
+├── data_utils
+│   ├── Data processing tools
+│   └── Clustering results
 ├── downstream
-│   └── structure
+│    ├── train_cdr_classification.py
+│    ├── train_interaction.py
+│    ├── train_sdab_type.py
+│    ├── train_cdr_infilling.py
+│    ├── train_paratope.py
+│    ├── train_vhh_affinity.py
+│    ├── train_thermo.py
+│    └── train_polyreaction.py
 ├── model
-|   |── rna-fm
-|   ├── rnabert
-|   ├── rnamsm
-|   ├── splicebert
-|   ├── utrlm
-|   ├── utrbert
-|   └── rnalm
+│   ├── esm2
+│   ├── protbert
+│   ├── ablang_l
+│   ├── ablang_h
+│   ├── antiberta2
+│   ├── vhhbert
+│   ├── igbert
+│   ├── antiberty
+│   └── nanobert
 ├── tokenizer
 └── scripts
-│    ├── BEACON-B
-│    └── opensource
+    └── opensource
 ```
 
-The full list of current task names are :
+Current supported downstream tasks:
 
-- `Secondary_structure_prediction`
-- `ContactMap`
-- `DistanceMap`
-- `StructuralScoreImputation`
-- `SpliceAI`
-- `Isoform`
-- `NoncodingRNAFamily`
-- `Modification`
-- `MeanRibosomeLoading`
-- `Degradation`
-- `ProgrammableRNASwitches`
-- `CRISPROnTarget`
-- `CRISPROffTarget`
+- `Nanobody (single-domain antibody) type classification` (VHH, VNAR, etc.)
+- `Variable region classification`
+- `CDR region infilling`
+- `Paratope prediction`
+- `Affinity prediction`
+- `Thermostability prediction`
+- `Polyreactivity prediction`
+- `Antigen-antibody interaction prediction`
 
-## 🔍Models
+## 🔍 Models
 
 <p align="center">
-    <img src="images/exp1.png" width="100%" height="100%">
+    <img src="images/models.png" width="100%" height="100%">
 </p>
 
-<p align="center">
-    <img src="images/exp2.png" width="100%" height="100%">
-</p>
+Currently supported pre-trained models:
 
-And the list of available embedders/models used for training on the tasks are :
+- `ESM2`
+- `ProtBERT`
+- `AblangL`
+- `AblangH`
+- `AntiBERTa2`
+- `VHHBert`
+- `IgBERT`
+- `AnTiberty`
+- `NanoBERT`
 
-- `rna-fm`
-- `rnabert`
-- `rnamsm`
-- `utr-lm-mrl`
-- `utr-lm-te-el`
-- `splicebert-human510`
-- `splicebert-ms510`
-- `splicebert-ms1024`
-- `utrbert-3mer`
-- `utrbert-4mer`
-- `utrbert-5mer`
-- `utrbert-6mer`
+### Model Settings
 
-### Model settings
+| Model                                               | Name         | Architecture | Max Seq Length | Parameters |
+| -------------------------------------------------- | ------------ | ---------- | ------------ | ------ |
+| [ESM2](https://github.com/facebookresearch/esm)    | esm2         | Transformer| 1024         | 650M   |
+| [ProtBERT](https://github.com/agemagician/ProtTrans)| protbert    | BERT       | 512          | 420M   |
+| [AblangL](https://github.com/oxpig/AbLang)         | ablang_l     | BERT       | 512          | 85M    |
+| [AblangH](https://github.com/oxpig/AbLang)         | ablang_h     | BERT       | 512          | 85M    |
+| [AntiBERTa2](https://github.com/aronwalsh/AntiBERTa2)| antiberta2 | RoBERTa    | 512          | 86M    |
+| [VHHBert](https://github.com/hefeda/VHHbert)       | vhhbert      | BERT       | 512          | 86M    |
+| [IgBERT](https://github.com/Graylab/IgBERT)        | igbert       | BERT       | 512          | 110M   |
+| [AnTiberty](https://github.com/ShanGaoLUMC/antiberty)| antiberty  | BERT       | 512          | 86M    |
+| [NanoBERT](https://github.com/YOUR_USERNAME/NanobodyBenchmark)| nanobert | BERT | 512       | 110M   |
 
-| Models                                                                | name                | token  | pos   | length |
-| --------------------------------------------------------------------- | ------------------- | ------ | ----- | ------ |
-| [RNA-FM](https://doi.org/10.48550/arXiv.2204.00300)                   | rna-fm              | single | ape   | 1024   |
-| [RNABERT](academic.oup.com/nargab/article/4/1/lqac012/6534363)        | rnabert             | single | ape   | 440    |
-| [RNA-MSM](academic.oup.com/nar/article/52/1/e3/7369930)               | rnamsm              | single | ape   | 1024   |
-| [SpliceBERT-H510](academic.oup.com/bib/article/25/3/bbae163/7644137)  | splicebert-human510 | single | ape   | 510    |
-| [SpliceBERT-MS510](academic.oup.com/bib/article/25/3/bbae163/7644137) | splicebert-ms510    | single | ape   | 510    |
-| [SpliceBERT-MS510](academic.oup.com/bib/article/25/3/bbae163/7644137) | splicebert-ms510    | single | ape   | 1024   |
-| [UTR-LM-MRL](https://www.nature.com/articles/s42256-024-00823-9)      | utr-lm-mrl          | single | rope  | 1026   |
-| [UTR-LM-TE&EL](https://www.nature.com/articles/s42256-024-00823-9)    | utr-lm-te-el        | single | rope  | 1026   |
-| [UTRBERT-3mer](https://doi.org/10.1101/2023.09.08.556883)             | utrbert-3mer        | 3mer   | ape   | 512    |
-| [UTRBERT-4mer](https://doi.org/10.1101/2023.09.08.556883)             | utrbert-4mer        | 4mer   | ape   | 512    |
-| [UTRBERT-5mer](https://doi.org/10.1101/2023.09.08.556883)             | utrbert-5mer        | 5mer   | ape   | 512    |
-| [UTRBERT-6mer](https://doi.org/10.1101/2023.09.08.556883)             | utrbert-6mer        | 6mer   | ape   | 512    |
-| [BEACON-B](https://arxiv.org/abs/2406.10391)                          | rnalm               | single | alibi | 1026   |
-| [BEACON-B512](https://arxiv.org/abs/2406.10391)                       | rnalm               | single | alibi | 512    |
+## 🔍 How to Use
 
-## 🔍 Usage
+### Fine-tuning
 
-### Finetuning
+To evaluate models on all nanobody tasks, run the bash scripts in the `scripts` folder:
 
-To evalute on all RNA tasks, you can run the bash scripts in the `scripts` folder, for example:
-
-```
-cd RNABenchmark
-bash ./scripts/BEACON-B/all_task.sh
+```bash
+cd NbBench
+bash ./scripts/opensource/{model_name}/all_tasks.sh
 ```
 
-### Computing embeddings
+### Computing Embeddings
 
-Embeddings from a dummy RNA sequence can be used as follows:
+Here's how to get embeddings from a sample single-domain antibody sequence:
 
 ```python
 import os, sys
 current_path = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_path)
 sys.path.append(parent_dir)
-from model.utrlm.modeling_utrlm import UtrLmModel
-from tokenizer.tokenization_opensource import OpenRnaLMTokenizer
+from model.esm2.modeling_esm import EsmModel
+from tokenizer.tokenization_esm import EsmTokenizer
 
-tokenizer = OpenRnaLMTokenizer.from_pretrained('./checkpoint/opensource/utr-lm-mrl', model_max_length=1026, padding_side="right", use_fast=True,)
-model = UtrLmModel.from_pretrained('./checkpoint/opensource/utr-lm-mrl')
-sequences = ["AUUCCGAUUCCGAUUCCG"]
-output = tokenizer.batch_encode_plus(sequences, return_tensors="pt", padding="longest", max_length = 1026, truncation=True)
+tokenizer = EsmTokenizer.from_pretrained('./checkpoint/opensource/esm2', model_max_length=1024, padding_side="right", use_fast=True)
+model = EsmModel.from_pretrained('./checkpoint/opensource/esm2')
+sequences = ["QVQLQESGGGLVQAGGSLRLSCAASGSIFSINTMGWYRQAPGKQRELVAAITSGGSTNYRDSVKGRFTISRDNAKNTVYLQMNSLKPEDTAVYYCNAGYGGSYYYPSSDVLEYWGQGTQVTVSS"]
+output = tokenizer.batch_encode_plus(sequences, return_tensors="pt", padding="longest", max_length = 1024, truncation=True)
 input_ids = output["input_ids"]
 attention_mask = output["attention_mask"]
 
-embedding = model(input_ids=input_ids,attention_mask=attention_mask)[0] # shape [bz,length, hidden_size]
+embedding = model(input_ids=input_ids, attention_mask=attention_mask)[0] # shape [bz, length, hidden_size]
 print(embedding.shape)
 ```
 
 ## License
 
-This codebase is released under the Apache License 2.0 as in the [LICENSE](LICENSE) file.
+This repository is released under the Apache License 2.0, as detailed in the [LICENSE](LICENSE) file.
 
 ## Citation
 
-If you find this repo useful for your research, please consider citing the paper
+If you use this repository in your research, please consider citing our paper:
 
 ```
-@misc{ren2024beacon,
-      title={BEACON: Benchmark for Comprehensive RNA Tasks and Language Models},
-      author={Yuchen Ren and Zhiyuan Chen and Lifeng Qiao and Hongtai Jing and Yuchen Cai and Sheng Xu and Peng Ye and Xinzhu Ma and Siqi Sun and Hongliang Yan and Dong Yuan and Wanli Ouyang and Xihui Liu},
+@misc{zhang2024nanobodybenchmark,
+      title={NanobodyBenchmark: Comprehensive Benchmark for Single-Domain Antibody Language Models},
+      author={Your Name and Co-authors},
       year={2024},
-      eprint={2406.10391},
-      archivePrefix={arXiv},
-      primaryClass={id='q-bio.QM' full_name='Quantitative Methods' is_active=True alt_name=None in_archive='q-bio' is_general=False description='All experimental, numerical, statistical and mathematical contributions of value to biology'}
+      howpublished={GitHub: https://github.com/YOUR_USERNAME/NanobodyBenchmark}
 }
 ```
