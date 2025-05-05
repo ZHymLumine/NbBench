@@ -7,7 +7,9 @@ data/
 data_utils/
 raw_data/
 outputs/
-checkpoint/
+
+*.bin
+*.safetensors
 developability_profilling/
 .cursorignore
 *.zip

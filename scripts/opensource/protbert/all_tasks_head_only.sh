@@ -2,12 +2,12 @@
 SECONDS=0
 # Common settings
 export TOKENIZERS_PARALLELISM=false
-gpu_device="7"
+gpu_device="0"
 nproc_per_node=1
 data_root="/home/yzhang/research/nanobody_benchmark/data"
 model_root="./checkpoint"
 MODEL_TYPE='protbert'
-seed=12345
+seed=42
 
 master_port=$(shuf -i 10000-45000 -n 1)
 echo "Using port $master_port for communication."
@@ -15,163 +15,8 @@ echo "Using port $master_port for communication."
 EXEC_PREFIX="env CUDA_VISIBLE_DEVICES=$gpu_device torchrun --nproc_per_node=$nproc_per_node --master_port=$master_port"
 
 # 1. CDR Classification Task
-echo "Starting CDR classification task..."
-task='CDRs_classification'
-DATA_PATH=${data_root}/downstream/${task}
-batch_size=32
-gradient_accumulation=2
-model_max_length=256
-lr=5e-3
-data=''
-data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
-MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-# MODEL_PATH="Rostlab/prot_bert"
-OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
-
-echo ${MODEL_PATH}
-
-${EXEC_PREFIX} \
-downstream/train_cdr_classification.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path  $DATA_PATH/$data \
-    --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
-    --run_name ${MODEL_TYPE}_${data}_seed${seed} \
-    --model_max_length ${model_max_length} \
-    --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 32 \
-    --gradient_accumulation_steps ${gradient_accumulation} \
-    --learning_rate ${lr} \
-    --num_train_epochs 50 \
-    --save_steps 200 \
-    --output_dir ${OUTPUT_PATH}/${data} \
-    --evaluation_strategy steps \
-    --eval_steps 200 \
-    --warmup_steps 50 \
-    --logging_steps 200 \
-    --overwrite_output_dir True \
-    --log_level info \
-    --seed ${seed} \
-    --model_type ${MODEL_TYPE}
-
-# 2. CDR Infilling Task
-echo "Starting CDR infilling task..."
-task='CDRs_infilling'
-DATA_PATH=${data_root}/downstream/${task}
-batch_size=32
-gradient_accumulation=2
-model_max_length=256
-lr=5e-3
-data=''
-data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
-MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-# MODEL_PATH="Rostlab/prot_bert"
-OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
-
-${EXEC_PREFIX} \
-downstream/train_cdr_infilling.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path  $DATA_PATH/$data \
-    --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
-    --run_name ${MODEL_TYPE}_${data}_seed${seed} \
-    --model_max_length ${model_max_length} \
-    --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 32 \
-    --gradient_accumulation_steps ${gradient_accumulation} \
-    --learning_rate ${lr} \
-    --num_train_epochs 50 \
-    --save_steps 200 \
-    --output_dir ${OUTPUT_PATH}/${data} \
-    --evaluation_strategy steps \
-    --eval_steps 200 \
-    --warmup_steps 50 \
-    --logging_steps 200 \
-    --overwrite_output_dir True \
-    --log_level info \
-    --seed ${seed} \
-    --model_type ${MODEL_TYPE}
-
-# 3. Interaction Prediction Task
-echo "Starting interaction prediction task..."
-
-# 3.1 AVIDa-SARS-CoV-2
-
-task='AVIDa-SARS-CoV-2'
-DATA_PATH=${data_root}/downstream/${task}
-batch_size=32
-gradient_accumulation=2
-model_max_length=256
-lr=5e-3
-data=''
-data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
-MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-# MODEL_PATH="Rostlab/prot_bert"
-OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}  
-seed=12345
-
-
-${EXEC_PREFIX} \
-    downstream/train_interaction.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path  $DATA_PATH/$data \
-    --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
-    --run_name ${MODEL_TYPE}_${data}_seed${seed} \
-    --model_max_length ${model_max_length} \
-    --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps ${gradient_accumulation} \
-    --learning_rate ${lr} \
-    --num_train_epochs 50 \
-    --save_steps 400 \
-    --output_dir ${OUTPUT_PATH}/${data} \
-    --evaluation_strategy steps \
-    --eval_steps 200 \
-    --warmup_steps 50 \
-    --logging_steps 200 \
-    --overwrite_output_dir True \
-    --log_level info \
-    --seed ${seed} \
-    --model_type ${MODEL_TYPE} \
-
-# 3.2 AVIDa-hIL6
-task='AVIDa-hIL6'
-DATA_PATH=${data_root}/downstream/${task}
-batch_size=32
-gradient_accumulation=2
-model_max_length=256
-lr=5e-3
-data=''
-data_file_train=train.csv; data_file_val=val_sampled.csv; data_file_test=test.csv
-MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-# MODEL_PATH="Rostlab/prot_bert"
-OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}  
-seed=12345
-
-
-${EXEC_PREFIX} \
-    downstream/train_interaction.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path  $DATA_PATH/$data \
-    --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
-    --run_name ${MODEL_TYPE}_${data}_seed${seed} \
-    --model_max_length ${model_max_length} \
-    --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 16 \
-    --gradient_accumulation_steps ${gradient_accumulation} \
-    --learning_rate ${lr} \
-    --num_train_epochs 30 \
-    --save_steps 200 \
-    --output_dir ${OUTPUT_PATH}/${data} \
-    --evaluation_strategy steps \
-    --eval_steps 200 \
-    --warmup_steps 50 \
-    --logging_steps 200 \
-    --overwrite_output_dir True \
-    --log_level info \
-    --seed ${seed} \
-    --model_type ${MODEL_TYPE} \
-
-# 3.3 AVIDa-hTNFa
-# task='AVIDa-hTNFa'
+# echo "Starting CDR classification task..."
+# task='CDRs_classification'
 # DATA_PATH=${data_root}/downstream/${task}
 # batch_size=32
 # gradient_accumulation=2
@@ -183,15 +28,17 @@ ${EXEC_PREFIX} \
 # # MODEL_PATH="Rostlab/prot_bert"
 # OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
 
+# echo ${MODEL_PATH}
+
 # ${EXEC_PREFIX} \
-#     downstream/train_interaction.py \
+# downstream/train_cdr_classification.py \
 #     --model_name_or_path $MODEL_PATH \
 #     --data_path  $DATA_PATH/$data \
 #     --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
 #     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
 #     --model_max_length ${model_max_length} \
 #     --per_device_train_batch_size ${batch_size} \
-#     --per_device_eval_batch_size 16 \
+#     --per_device_eval_batch_size 32 \
 #     --gradient_accumulation_steps ${gradient_accumulation} \
 #     --learning_rate ${lr} \
 #     --num_train_epochs 50 \
@@ -206,155 +53,269 @@ ${EXEC_PREFIX} \
 #     --seed ${seed} \
 #     --model_type ${MODEL_TYPE}
 
-# 4. Paratope Prediction Task
-echo "Starting paratope prediction task..."
-task='paratope'
-DATA_PATH=${data_root}/downstream/${task}
-batch_size=32
-gradient_accumulation=2
-model_max_length=256
-lr=5e-3
-data=''
-data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
-MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-# MODEL_PATH="Rostlab/prot_bert"
-OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
+# # 2. CDR Infilling Task
+# echo "Starting CDR infilling task..."
+# task='CDRs_infilling'
+# DATA_PATH=${data_root}/downstream/${task}
+# batch_size=32
+# gradient_accumulation=2
+# model_max_length=256
+# lr=5e-3
+# data=''
+# data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
+# MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
+# # MODEL_PATH="Rostlab/prot_bert"
+# OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
+
+# ${EXEC_PREFIX} \
+# downstream/train_cdr_infilling.py \
+#     --model_name_or_path $MODEL_PATH \
+#     --data_path  $DATA_PATH/$data \
+#     --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
+#     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
+#     --model_max_length ${model_max_length} \
+#     --per_device_train_batch_size ${batch_size} \
+#     --per_device_eval_batch_size 32 \
+#     --gradient_accumulation_steps ${gradient_accumulation} \
+#     --learning_rate ${lr} \
+#     --num_train_epochs 50 \
+#     --save_steps 200 \
+#     --output_dir ${OUTPUT_PATH}/${data} \
+#     --evaluation_strategy steps \
+#     --eval_steps 200 \
+#     --warmup_steps 50 \
+#     --logging_steps 200 \
+#     --overwrite_output_dir True \
+#     --log_level info \
+#     --seed ${seed} \
+#     --model_type ${MODEL_TYPE}
+
+# # 3. Interaction Prediction Task
+# echo "Starting interaction prediction task..."
+
+# # 3.1 AVIDa-SARS-CoV-2
+
+# task='AVIDa-SARS-CoV-2'
+# DATA_PATH=${data_root}/downstream/${task}
+# batch_size=32
+# gradient_accumulation=2
+# model_max_length=256
+# lr=5e-3
+# data=''
+# data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
+# MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
+# # MODEL_PATH="Rostlab/prot_bert"
+# OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}  
 
 
-${EXEC_PREFIX} \
-downstream/train_paratope.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path  $DATA_PATH/$data \
-    --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
-    --run_name ${MODEL_TYPE}_${data}_seed${seed} \
-    --model_max_length ${model_max_length} \
-    --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 32 \
-    --gradient_accumulation_steps ${gradient_accumulation} \
-    --learning_rate ${lr} \
-    --num_train_epochs 50 \
-    --save_steps 200 \
-    --output_dir ${OUTPUT_PATH}/${data} \
-    --evaluation_strategy steps \
-    --eval_steps 200 \
-    --warmup_steps 50 \
-    --logging_steps 200 \
-    --overwrite_output_dir True \
-    --log_level info \
-    --seed ${seed} \
-    --model_type ${MODEL_TYPE} \
+# ${EXEC_PREFIX} \
+#     downstream/train_interaction.py \
+#     --model_name_or_path $MODEL_PATH \
+#     --data_path  $DATA_PATH/$data \
+#     --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
+#     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
+#     --model_max_length ${model_max_length} \
+#     --per_device_train_batch_size ${batch_size} \
+#     --per_device_eval_batch_size 4 \
+#     --gradient_accumulation_steps ${gradient_accumulation} \
+#     --learning_rate ${lr} \
+#     --num_train_epochs 50 \
+#     --save_steps 400 \
+#     --output_dir ${OUTPUT_PATH}/${data} \
+#     --evaluation_strategy steps \
+#     --eval_steps 200 \
+#     --warmup_steps 50 \
+#     --logging_steps 200 \
+#     --overwrite_output_dir True \
+#     --log_level info \
+#     --seed ${seed} \
+#     --model_type ${MODEL_TYPE} \
 
-# 5. Polyreactivity Prediction Task
-echo "Starting polyreactivity prediction task..."
-task='polyreaction'
-DATA_PATH=${data_root}/downstream/${task}
-batch_size=32
-gradient_accumulation=2
-model_max_length=256
-lr=5e-3
-data=''
-data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
-MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-# MODEL_PATH="Rostlab/prot_bert"
-OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
+# # 3.2 AVIDa-hIL6
+# task='AVIDa-hIL6'
+# DATA_PATH=${data_root}/downstream/${task}
+# batch_size=32
+# gradient_accumulation=2
+# model_max_length=256
+# lr=5e-3
+# data=''
+# data_file_train=train.csv; data_file_val=val_sampled.csv; data_file_test=test.csv
+# MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
+# # MODEL_PATH="Rostlab/prot_bert"
+# OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}  
+
+# ${EXEC_PREFIX} \
+#     downstream/train_interaction.py \
+#     --model_name_or_path $MODEL_PATH \
+#     --data_path  $DATA_PATH/$data \
+#     --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
+#     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
+#     --model_max_length ${model_max_length} \
+#     --per_device_train_batch_size ${batch_size} \
+#     --per_device_eval_batch_size 16 \
+#     --gradient_accumulation_steps ${gradient_accumulation} \
+#     --learning_rate ${lr} \
+#     --num_train_epochs 30 \
+#     --save_steps 200 \
+#     --output_dir ${OUTPUT_PATH}/${data} \
+#     --evaluation_strategy steps \
+#     --eval_steps 200 \
+#     --warmup_steps 50 \
+#     --logging_steps 200 \
+#     --overwrite_output_dir True \
+#     --log_level info \
+#     --seed ${seed} \
+#     --model_type ${MODEL_TYPE} \
+
+# # 4. Paratope Prediction Task
+# echo "Starting paratope prediction task..."
+# task='paratope'
+# DATA_PATH=${data_root}/downstream/${task}
+# batch_size=32
+# gradient_accumulation=2
+# model_max_length=256
+# lr=5e-3
+# data=''
+# data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
+# MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
+# # MODEL_PATH="Rostlab/prot_bert"
+# OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
 
 
-${EXEC_PREFIX} \
-downstream/train_polyreaction.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path  $DATA_PATH/$data \
-    --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
-    --run_name ${MODEL_TYPE}_${data}_seed${seed} \
-    --model_max_length ${model_max_length} \
-    --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 8 \
-    --gradient_accumulation_steps ${gradient_accumulation} \
-    --learning_rate ${lr} \
-    --num_train_epochs 50 \
-    --save_steps 200 \
-    --output_dir ${OUTPUT_PATH}/${data} \
-    --evaluation_strategy steps \
-    --eval_steps 200 \
-    --warmup_steps 50 \
-    --logging_steps 200 \
-    --overwrite_output_dir True \
-    --log_level info \
-    --seed ${seed} \
-    --model_type ${MODEL_TYPE} \
+# ${EXEC_PREFIX} \
+# downstream/train_paratope.py \
+#     --model_name_or_path $MODEL_PATH \
+#     --data_path  $DATA_PATH/$data \
+#     --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
+#     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
+#     --model_max_length ${model_max_length} \
+#     --per_device_train_batch_size ${batch_size} \
+#     --per_device_eval_batch_size 32 \
+#     --gradient_accumulation_steps ${gradient_accumulation} \
+#     --learning_rate ${lr} \
+#     --num_train_epochs 50 \
+#     --save_steps 200 \
+#     --output_dir ${OUTPUT_PATH}/${data} \
+#     --evaluation_strategy steps \
+#     --eval_steps 200 \
+#     --warmup_steps 50 \
+#     --logging_steps 200 \
+#     --overwrite_output_dir True \
+#     --log_level info \
+#     --seed ${seed} \
+#     --model_type ${MODEL_TYPE} \
 
-# 6. Sdab Type Prediction Task
-echo "Starting sdab type prediction task..."
-task='sdabtype'
-DATA_PATH=${data_root}/downstream/${task}
-batch_size=32
-gradient_accumulation=2
-model_max_length=256
-lr=5e-3
-data=''
-data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
-MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-# MODEL_PATH="Rostlab/prot_bert"
-OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
+# # 5. Polyreactivity Prediction Task
+# echo "Starting polyreactivity prediction task..."
+# task='polyreaction'
+# DATA_PATH=${data_root}/downstream/${task}
+# batch_size=32
+# gradient_accumulation=2
+# model_max_length=256
+# lr=5e-3
+# data=''
+# data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
+# MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
+# # MODEL_PATH="Rostlab/prot_bert"
+# OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
 
-${EXEC_PREFIX} \
-downstream/train_sdab_type.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path  $DATA_PATH/$data \
-    --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
-    --run_name ${MODEL_TYPE}_${data}_seed${seed} \
-    --model_max_length ${model_max_length} \
-    --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 32 \
-    --gradient_accumulation_steps ${gradient_accumulation} \
-    --learning_rate ${lr} \
-    --num_train_epochs 50 \
-    --save_steps 200 \
-    --output_dir ${OUTPUT_PATH}/${data} \
-    --evaluation_strategy steps \
-    --eval_steps 200 \
-    --warmup_steps 50 \
-    --logging_steps 200 \
-    --overwrite_output_dir True \
-    --log_level info \
-    --seed ${seed} \
-    --model_type ${MODEL_TYPE}
 
-# 7. VHH Affinity Prediction Task
-echo "Starting affinity prediction task..."
-task='vhh_affinity'
-DATA_PATH=${data_root}/downstream/${task}
-batch_size=32
-gradient_accumulation=2
-model_max_length=256
-lr=5e-3
-data=''
-data_file_train=train_score.csv; data_file_val=val_score.csv; data_file_test=test_score.csv
-MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
-# MODEL_PATH="Rostlab/prot_bert"
-OUTPUT_PATH=./outputs/probe/${task}/score/opensource/${MODEL_TYPE}_lr_${lr}
+# ${EXEC_PREFIX} \
+# downstream/train_polyreaction.py \
+#     --model_name_or_path $MODEL_PATH \
+#     --data_path  $DATA_PATH/$data \
+#     --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
+#     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
+#     --model_max_length ${model_max_length} \
+#     --per_device_train_batch_size ${batch_size} \
+#     --per_device_eval_batch_size 8 \
+#     --gradient_accumulation_steps ${gradient_accumulation} \
+#     --learning_rate ${lr} \
+#     --num_train_epochs 50 \
+#     --save_steps 200 \
+#     --output_dir ${OUTPUT_PATH}/${data} \
+#     --evaluation_strategy steps \
+#     --eval_steps 200 \
+#     --warmup_steps 50 \
+#     --logging_steps 200 \
+#     --overwrite_output_dir True \
+#     --log_level info \
+#     --seed ${seed} \
+#     --model_type ${MODEL_TYPE} \
 
-${EXEC_PREFIX} \
-    downstream/train_vhh_affinity.py \
-    --model_name_or_path $MODEL_PATH \
-    --data_path  $DATA_PATH/$data \
-    --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
-    --run_name ${MODEL_TYPE}_${data}_seed${seed} \
-    --model_max_length ${model_max_length} \
-    --per_device_train_batch_size ${batch_size} \
-    --per_device_eval_batch_size 32 \
-    --gradient_accumulation_steps ${gradient_accumulation} \
-    --learning_rate ${lr} \
-    --num_train_epochs 50 \
-    --save_steps 200 \
-    --output_dir ${OUTPUT_PATH}/${data} \
-    --evaluation_strategy steps \
-    --eval_steps 200 \
-    --warmup_steps 50 \
-    --logging_steps 200 \
-    --overwrite_output_dir True \
-    --log_level info \
-    --seed ${seed} \
-    --model_type ${MODEL_TYPE} \
+# # 6. Sdab Type Prediction Task
+# echo "Starting sdab type prediction task..."
+# task='sdabtype'
+# DATA_PATH=${data_root}/downstream/${task}
+# batch_size=32
+# gradient_accumulation=2
+# model_max_length=256
+# lr=5e-3
+# data=''
+# data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
+# MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
+# # MODEL_PATH="Rostlab/prot_bert"
+# OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}
+
+# ${EXEC_PREFIX} \
+# downstream/train_sdab_type.py \
+#     --model_name_or_path $MODEL_PATH \
+#     --data_path  $DATA_PATH/$data \
+#     --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
+#     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
+#     --model_max_length ${model_max_length} \
+#     --per_device_train_batch_size ${batch_size} \
+#     --per_device_eval_batch_size 32 \
+#     --gradient_accumulation_steps ${gradient_accumulation} \
+#     --learning_rate ${lr} \
+#     --num_train_epochs 50 \
+#     --save_steps 200 \
+#     --output_dir ${OUTPUT_PATH}/${data} \
+#     --evaluation_strategy steps \
+#     --eval_steps 200 \
+#     --warmup_steps 50 \
+#     --logging_steps 200 \
+#     --overwrite_output_dir True \
+#     --log_level info \
+#     --seed ${seed} \
+#     --model_type ${MODEL_TYPE}
+
+# # 7. VHH Affinity Prediction Task
+# echo "Starting affinity prediction task..."
+# task='vhh_affinity'
+# DATA_PATH=${data_root}/downstream/${task}
+# batch_size=32
+# gradient_accumulation=2
+# model_max_length=256
+# lr=5e-3
+# data=''
+# data_file_train=train_score.csv; data_file_val=val_score.csv; data_file_test=test_score.csv
+# MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
+# # MODEL_PATH="Rostlab/prot_bert"
+# OUTPUT_PATH=./outputs/probe/${task}/score/opensource/${MODEL_TYPE}_lr_${lr}
+
+# ${EXEC_PREFIX} \
+#     downstream/train_vhh_affinity.py \
+#     --model_name_or_path $MODEL_PATH \
+#     --data_path  $DATA_PATH/$data \
+#     --data_train_path ${data_file_train} --data_val_path ${data_file_val} --data_test_path ${data_file_test}   \
+#     --run_name ${MODEL_TYPE}_${data}_seed${seed} \
+#     --model_max_length ${model_max_length} \
+#     --per_device_train_batch_size ${batch_size} \
+#     --per_device_eval_batch_size 32 \
+#     --gradient_accumulation_steps ${gradient_accumulation} \
+#     --learning_rate ${lr} \
+#     --num_train_epochs 50 \
+#     --save_steps 200 \
+#     --output_dir ${OUTPUT_PATH}/${data} \
+#     --evaluation_strategy steps \
+#     --eval_steps 200 \
+#     --warmup_steps 50 \
+#     --logging_steps 200 \
+#     --overwrite_output_dir True \
+#     --log_level info \
+#     --seed ${seed} \
+#     --model_type ${MODEL_TYPE} \
 
 data_file_train=train_seq.csv; data_file_val=val_seq.csv; data_file_test=test_seq.csv
 OUTPUT_PATH=./outputs/probe/${task}/seq/opensource/${MODEL_TYPE}_lr_${lr}

@@ -165,7 +165,6 @@ class VHHBertForAminoAcidLevel(PreTrainedModel):
     base_model_prefix = "vhhbert"
     supports_gradient_checkpointing = True
     def __init__(self, config, tokenizer=None):
-        print(f"config: {config}")
         super().__init__(config)
         self.num_labels = config.num_labels
         self.vhhbert = RobertaForMaskedLM.from_pretrained(config._name_or_path, config=config)

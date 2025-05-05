@@ -150,7 +150,6 @@ class IgBertForAminoAcidLevel(PreTrainedModel):
     base_model_prefix = "igbert"
     supports_gradient_checkpointing = True
     def __init__(self, config, tokenizer=None):
-        print(f"config: {config}")
         super().__init__(config)
         self.num_labels = config.num_labels
         self.igbert = BertForMaskedLM.from_pretrained(config._name_or_path, config=config)
@@ -249,7 +248,6 @@ class IgBertForBindingSequenceClassification(PreTrainedModel):
             self.classifier = nn.Linear(config.hidden_size + esm_config.hidden_size, 1)
         else:
             self.classifier = nn.Linear(config.hidden_size + esm_config.hidden_size, config.num_labels) 
-        # print(f"self.vhhbert: {self.vhhbert}")
         # Initialize weights and apply final processing
         self.post_init()
 

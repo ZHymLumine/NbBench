@@ -167,7 +167,6 @@ class NanoBertForAminoAcidLevel(PreTrainedModel):
     supports_gradient_checkpointing = True
     def __init__(self, config, tokenizer=None):
         super().__init__(config)
-        print(f"config: {config}")
         self.num_labels = config.num_labels
         self.config = config
     
@@ -252,7 +251,6 @@ class NanoBertForBindingSequenceClassification(PreTrainedModel):
         super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
-        print(f"config: {config}")
         self.nanobert = RobertaForMaskedLM.from_pretrained(config._name_or_path, config=config)
         if config.freeze:
             for param in self.nanobert.parameters():

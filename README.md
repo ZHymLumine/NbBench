@@ -20,6 +20,26 @@ conda create -n nbbench python=3.8 -y
 pip install -r requirements.txt
 ```
 
+### Downloading Pre-trained Model Weights
+
+We evaluate multiple open-source pre-trained models. Download these model weights to the corresponding `checkpoint/opensource/{model_name}` directory.
+
+Supported models and their Hugging Face repository URLs:
+[ZYMScott/nanobody-antigen-binding](https://huggingface.co/datasets/ZYMScott/nanobody-antigen-binding)
+| Model Name   | Hugging Face Repository |
+|--------------|-------------------------|
+| ESM2-150M         | [facebook/esm2_t30_150M_UR50D](https://huggingface.co/facebook/esm2_t30_150M_UR50D) |
+| ESM2-650M         | [facebook/esm2_t33_650M_UR50D](https://huggingface.co/facebook/esm2_t33_650M_UR50D) |
+| ProtBERT     | [Rostlab/prot_bert](https://huggingface.co/Rostlab/prot_bert) |
+| AblangL      | [qilowoq/AbLang_heavy](https://huggingface.co/qilowoq/AbLang_heavy) |
+| AblangH      | [qilowoq/AbLang_light](https://huggingface.co/qilowoq/AbLang_light) |
+| AnTiberty    | [ZYMScott/antiberty](https://huggingface.co/ZYMScott/antiberty)  or from [PyPI weights](https://pypi.org/project/antiberty/#files) |
+| AntiBERTa2   | [alchemab/antiberta2](https://huggingface.co/alchemab/antiberta2) |
+| AntiBERTa2-cssp   | [alchemab/antiberta2-cssp](https://huggingface.co/alchemab/antiberta2-cssp) |
+| IgBERT       | [Exscientia/IgBert](https://huggingface.co/Exscientia/IgBert) |
+| NanoBERT     | [NaturalAntibody/nanoBERT](https://huggingface.co/NaturalAntibody/nanoBERT) |
+| VHHBert      | [COGNANO/VHHBERT](https://huggingface.co/COGNANO/VHHBERT) |
+
 ## 🔍 Tasks and Datasets
 
 ### Data Structure
@@ -76,10 +96,42 @@ Current supported downstream tasks:
 - `Polyreactivity prediction`
 - `Antigen-antibody interaction prediction`
 
+### Using Hugging Face Datasets
+
+NanobodyBenchmark now supports loading datasets directly from Hugging Face Dataset Hub or downloading them to local storage. This provides flexibility and easier access to benchmark datasets.
+
+#### Available Datasets on Hugging Face
+
+The following datasets are available on Hugging Face:
+
+- **Binding Prediction**: [ZYMScott/nanobody-antigen-binding](https://huggingface.co/datasets/ZYMScott/nanobody-antigen-binding)
+- **CDR Classification**: [ZYMScott/VRClassification](https://huggingface.co/datasets/ZYMScott/VRClassification)
+- **Thermostability**: [ZYMScott/nanobody-thermostability](https://huggingface.co/datasets/ZYMScott/nanobody-thermostability)
+- **Polyreactivity**: [ZYMScott/nanobody-polyreactivity](https://huggingface.co/datasets/ZYMScott/nanobody-polyreactivity)
+
+#### Loading Datasets
+
+You can load datasets from Hugging Face in three ways:
+
+1. **Direct Loading** - Use the dataset from Hugging Face without downloading:
+
+
+
+2. **Download to Local Path** - Download the dataset to your local `data/downstream` directory:
+
+#### Scripts for Hugging Face Datasets
+
+For convenience, we also provide shell scripts to run the training with Hugging Face datasets:
+
+
+#### Special Note for Antigen-Antibody Interaction Task
+
+For the interaction prediction task, the model requires antigen embeddings. These embeddings are automatically downloaded from the Hugging Face dataset repository. No additional steps are needed.
+
 ## 🔍 Models
 
 <p align="center">
-    <img src="images/models.png" width="100%" height="100%">
+    <img src="images/results.png" width="100%" height="100%">
 </p>
 
 Currently supported pre-trained models:
@@ -93,20 +145,6 @@ Currently supported pre-trained models:
 - `IgBERT`
 - `AnTiberty`
 - `NanoBERT`
-
-### Model Settings
-
-| Model                                               | Name         | Architecture | Max Seq Length | Parameters |
-| -------------------------------------------------- | ------------ | ---------- | ------------ | ------ |
-| [ESM2](https://github.com/facebookresearch/esm)    | esm2         | Transformer| 1024         | 650M   |
-| [ProtBERT](https://github.com/agemagician/ProtTrans)| protbert    | BERT       | 512          | 420M   |
-| [AblangL](https://github.com/oxpig/AbLang)         | ablang_l     | BERT       | 512          | 85M    |
-| [AblangH](https://github.com/oxpig/AbLang)         | ablang_h     | BERT       | 512          | 85M    |
-| [AntiBERTa2](https://github.com/aronwalsh/AntiBERTa2)| antiberta2 | RoBERTa    | 512          | 86M    |
-| [VHHBert](https://github.com/hefeda/VHHbert)       | vhhbert      | BERT       | 512          | 86M    |
-| [IgBERT](https://github.com/Graylab/IgBERT)        | igbert       | BERT       | 512          | 110M   |
-| [AnTiberty](https://github.com/ShanGaoLUMC/antiberty)| antiberty  | BERT       | 512          | 86M    |
-| [NanoBERT](https://github.com/YOUR_USERNAME/NanobodyBenchmark)| nanobert | BERT | 512       | 110M   |
 
 ## 🔍 How to Use
 
@@ -124,23 +162,50 @@ bash ./scripts/opensource/{model_name}/all_tasks.sh
 Here's how to get embeddings from a sample single-domain antibody sequence:
 
 ```python
-import os, sys
-current_path = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_path)
-sys.path.append(parent_dir)
-from model.esm2.modeling_esm import EsmModel
-from tokenizer.tokenization_esm import EsmTokenizer
+import torch
+from transformers import EsmModel, EsmTokenizer
+from tqdm import tqdm
+import pandas as pd
 
-tokenizer = EsmTokenizer.from_pretrained('./checkpoint/opensource/esm2', model_max_length=1024, padding_side="right", use_fast=True)
-model = EsmModel.from_pretrained('./checkpoint/opensource/esm2')
-sequences = ["QVQLQESGGGLVQAGGSLRLSCAASGSIFSINTMGWYRQAPGKQRELVAAITSGGSTNYRDSVKGRFTISRDNAKNTVYLQMNSLKPEDTAVYYCNAGYGGSYYYPSSDVLEYWGQGTQVTVSS"]
-output = tokenizer.batch_encode_plus(sequences, return_tensors="pt", padding="longest", max_length = 1024, truncation=True)
-input_ids = output["input_ids"]
-attention_mask = output["attention_mask"]
+model_name = "facebook/esm2_t33_650M_UR50D"
+tokenizer = EsmTokenizer.from_pretrained(model_name)
+model = EsmModel.from_pretrained(model_name)
+model.eval().cuda()
 
-embedding = model(input_ids=input_ids, attention_mask=attention_mask)[0] # shape [bz, length, hidden_size]
-print(embedding.shape)
+def get_unique_sequences(csv_files):
+    sequences = set()
+    for file in csv_files:
+        df = pd.read_csv(file)
+        sequences.update(df["seq"].dropna().unique())
+    return list(sequences)
+
+
+def get_embedding(sequence, max_seq_length):
+    inputs = tokenizer(sequence, padding="max_length", return_tensors="pt", truncation=True, max_length=max_seq_length)
+    with torch.no_grad():
+        outputs = model(**{k: v.cuda() for k, v in inputs.items()})
+    last_hidden_state = outputs.last_hidden_state.cpu()
+    return last_hidden_state  # shape: [hidden_size]
+
+
+def save_embeddings_pt(sequences, output_path):
+    max_seq_length = max(len(seq) for seq in sequences)
+    emb_dict = {}
+    for seq in sequences:
+        emb = get_embedding(seq, max_seq_length)
+        emb_dict[seq] = emb
+    torch.save(emb_dict, output_path)
+    print(f"Saved {len(emb_dict)} embeddings to {output_path}")
+
+csv_files = ["train.csv", "val.csv", "test.csv"]
+sequences = get_unique_sequences(csv_files)
+
+save_embeddings_pt(sequences, "antigen_embeddings.pt")
 ```
+or you can download the precomputed `antigen_embeddings.pt` file from huggingface 
+- [ZYMScott/SARS-CoV-2](https://huggingface.co/datasets/ZYMScott/SARS-CoV-2/tree/main)
+- [ZYMScott/hIL6](https://huggingface.co/datasets/ZYMScott/hIL6/tree/main)
+- [ZYMScott/Paratope](https://huggingface.co/datasets/ZYMScott/Paratope/tree/main)
 
 ## License
 
@@ -152,9 +217,8 @@ If you use this repository in your research, please consider citing our paper:
 
 ```
 @misc{zhang2024nanobodybenchmark,
-      title={NanobodyBenchmark: Comprehensive Benchmark for Single-Domain Antibody Language Models},
-      author={Your Name and Co-authors},
-      year={2024},
-      howpublished={GitHub: https://github.com/YOUR_USERNAME/NanobodyBenchmark}
+      title={NbBench: Benchmarking Language Models for Comprehensive Nanobody Tasks},
+      author={Yiming Zhang and Koji Tsuda},
+      year={2025},
 }
 ```

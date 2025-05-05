@@ -7,7 +7,7 @@ nproc_per_node=1
 data_root="/home/yzhang/research/nanobody_benchmark/data"
 model_root="./checkpoint"
 MODEL_TYPE='ablang_l'
-seed=1234
+seed=42
 
 master_port=$(shuf -i 10000-45000 -n 1)
 echo "Using port $master_port for communication."
@@ -103,7 +103,7 @@ data=''
 data_file_train=train.csv; data_file_val=val.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
 OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}  
-seed=1234
+seed=42
 
 
 ${EXEC_PREFIX} \
@@ -140,7 +140,7 @@ data=''
 data_file_train=train.csv; data_file_val=val_sampled.csv; data_file_test=test.csv
 MODEL_PATH=${model_root}/opensource/${MODEL_TYPE}
 OUTPUT_PATH=./outputs/probe/${task}/opensource/${MODEL_TYPE}_lr_${lr}  
-seed=1234
+seed=42
 
 
 ${EXEC_PREFIX} \

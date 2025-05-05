@@ -30,7 +30,6 @@ sys.path.append(parent_dir)
 from model.nanobert.modeling_nanobert import NanoBertForAminoAcidLevel
 from model.vhhbert.modeling_vhhbert import VHHBertForAminoAcidLevel
 from model.antiberty.modeling_antiberty import AntiBERTyForAminoAcidLevel
-from model.iglm.modeling_iglm import IgLMForAminoAcidLevel
 from model.igbert.modeling_igbert import IgBertForAminoAcidLevel
 from model.ablang_h.modeling_ablang_h import AbLangHForAminoAcidLevel
 from model.ablang_l.modeling_ablang_l import AbLangLForAminoAcidLevel

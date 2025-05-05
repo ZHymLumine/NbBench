@@ -30,7 +30,6 @@ sys.path.append(parent_dir)
 from model.nanobert.modeling_nanobert import NanoBertForParatope
 from model.vhhbert.modeling_vhhbert import VHHBertForParatope
 from model.antiberty.modeling_antiberty import AntiBERTyForParatope
-from model.iglm.modeling_iglm import IgLMForParatope
 from model.igbert.modeling_igbert import IgBertForParatope
 from model.ablang_h.modeling_ablang_h import AbLangHForParatope
 from model.ablang_l.modeling_ablang_l import AbLangLForParatope
@@ -286,7 +285,6 @@ def train():
     elif training_args.model_type == 'vhhbert':  
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        print(f"model_args: {model_args}")
         model = VHHBertForParatope.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
@@ -301,16 +299,7 @@ def train():
             cache_dir=training_args.cache_dir,
             num_labels=train_dataset.num_labels,
             trust_remote_code=True,
-        )        
-    elif training_args.model_type == 'iglm':
-        print(training_args.model_type)
-        print(f'Loading {training_args.model_type} model')
-        model = IgLMForParatope.from_pretrained(
-            model_args.model_name_or_path,
-            cache_dir=training_args.cache_dir,
-            num_labels=train_dataset.num_labels,
-            trust_remote_code=True,
-        )        
+        )           
     elif training_args.model_type == 'igbert':
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
@@ -368,8 +357,6 @@ def train():
     elif "esm-2" in training_args.model_type:
         print(training_args.model_type)
         print(f'Loading {training_args.model_type} model')
-        print(f"model_args: {model_args}")
-        print(f"model_args type:{type(model_args)}")
         model = ESMForParatope(
             model_args,
             num_labels=train_dataset.num_labels,

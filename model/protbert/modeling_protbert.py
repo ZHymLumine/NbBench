@@ -169,7 +169,6 @@ class ProtBertForAminoAcidLevel(PreTrainedModel):
     supports_gradient_checkpointing = True
     def __init__(self, config, tokenizer=None):
         super().__init__(config)
-        print(f"config: {config}")
         self.num_labels = config.num_labels
         self.config = config
     
