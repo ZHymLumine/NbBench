@@ -43,6 +43,7 @@ MANIFEST
 *.spec
 
 .DS_Store
+.vscode
 .sync-exclude
 # Installer logs
 pip-log.txt
