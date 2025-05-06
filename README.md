@@ -102,12 +102,24 @@ NanobodyBenchmark now supports loading datasets directly from Hugging Face Datas
 
 #### Available Datasets on Hugging Face
 
-The following datasets are available on Hugging Face:
+The following datasets are available on [Hugging Face collection](https://huggingface.co/collections/ZYMScott/nbbench-68141e3051f8723e48cd585d):
 
-- **Binding Prediction**: [ZYMScott/nanobody-antigen-binding](https://huggingface.co/datasets/ZYMScott/nanobody-antigen-binding)
-- **CDR Classification**: [ZYMScott/VRClassification](https://huggingface.co/datasets/ZYMScott/VRClassification)
-- **Thermostability**: [ZYMScott/nanobody-thermostability](https://huggingface.co/datasets/ZYMScott/nanobody-thermostability)
-- **Polyreactivity**: [ZYMScott/nanobody-polyreactivity](https://huggingface.co/datasets/ZYMScott/nanobody-polyreactivity)
+
+- **Binding Prediction**: 
+    - [SARS-COV-2](https://huggingface.co/datasets/ZYMScott/SARS-CoV-2)
+    - [hIL6](https://huggingface.co/datasets/ZYMScott/hIL6)
+    - [paratope prediction](https://huggingface.co/datasets/ZYMScott/Paratope)
+- **[VR Classification](https://huggingface.co/datasets/ZYMScott/VRClassification)**
+- **[CDR Infilling](https://huggingface.co/datasets/ZYMScott/CDRInfilling)**
+- **Thermostability**: 
+    - [thermo-seq](https://huggingface.co/datasets/ZYMScott/thermo-seq)
+    - [thermo-tm](https://huggingface.co/datasets/ZYMScott/thermo-tm)
+- **Affinity**: 
+    - [affinity-seq](https://huggingface.co/datasets/ZYMScott/vhh_affinity-seq)
+    - [affinity-score](https://huggingface.co/datasets/ZYMScott/vhh_affinity-score)   
+- **[Polyreactivity](https://huggingface.co/datasets/ZYMScott/polyreaction)**
+- **[Nanobody type](https://huggingface.co/datasets/ZYMScott/nanobody_type)**
+
 
 #### Loading Datasets
 
@@ -116,13 +128,7 @@ You can load datasets from Hugging Face in three ways:
 1. **Direct Loading** - Use the dataset from Hugging Face without downloading:
 
 
-
-2. **Download to Local Path** - Download the dataset to your local `data/downstream` directory:
-
-#### Scripts for Hugging Face Datasets
-
-For convenience, we also provide shell scripts to run the training with Hugging Face datasets:
-
+2. **Download to Local Path** - Download the dataset to your local `data/downstream` directory.
 
 #### Special Note for Antigen-Antibody Interaction Task
 
@@ -203,9 +209,9 @@ sequences = get_unique_sequences(csv_files)
 save_embeddings_pt(sequences, "antigen_embeddings.pt")
 ```
 or you can download the precomputed `antigen_embeddings.pt` file from huggingface 
-- [ZYMScott/SARS-CoV-2](https://huggingface.co/datasets/ZYMScott/SARS-CoV-2/tree/main)
-- [ZYMScott/hIL6](https://huggingface.co/datasets/ZYMScott/hIL6/tree/main)
-- [ZYMScott/Paratope](https://huggingface.co/datasets/ZYMScott/Paratope/tree/main)
+- [SARS-CoV-2](https://huggingface.co/datasets/ZYMScott/SARS-CoV-2/tree/main)
+- [hIL6](https://huggingface.co/datasets/ZYMScott/hIL6/tree/main)
+- [Paratope](https://huggingface.co/datasets/ZYMScott/Paratope/tree/main)
 
 ## License
 
@@ -216,9 +222,13 @@ This repository is released under the Apache License 2.0, as detailed in the [LI
 If you use this repository in your research, please consider citing our paper:
 
 ```
-@misc{zhang2024nanobodybenchmark,
-      title={NbBench: Benchmarking Language Models for Comprehensive Nanobody Tasks},
+@misc{zhang2025nbbenchbenchmarkinglanguagemodels,
+      title={NbBench: Benchmarking Language Models for Comprehensive Nanobody Tasks}, 
       author={Yiming Zhang and Koji Tsuda},
       year={2025},
+      eprint={2505.02022},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2505.02022}, 
 }
 ```
